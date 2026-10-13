@@ -20,3 +20,101 @@ jobs:
         with:
           name: New-Bible-Growth-1.1.0-APK
           path: app/build/outputs/apk/debug/app-debug.apk
+
+
+include ':app'
+
+
+// Top level
+
+
+plugins { id 'com.android.application' }
+android {
+ compileSdk 33
+ defaultConfig {
+  applicationId "com.comfortgeek.newbiblegrowth"
+  minSdk 21
+  targetSdk 33
+  versionCode 2
+  versionName "1.1.0"
+ }
+ buildTypes {
+  release { minifyEnabled false }
+ }
+}
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.comfortgeek.newbiblegrowth">
+ <application android:allowBackup="true" android:label="New Bible Growth" android:theme="@android:style/Theme.NoTitleBar">
+  <activity android:name=".MainActivity" android:exported="true">
+   <intent-filter>
+    <action android:name="android.intent.action.MAIN" />
+    <category android:name="android.intent.category.LAUNCHER" />
+   </intent-filter>
+  </activity>
+ </application>
+</manifest>
+
+
+<resources>
+ <string name="app_name">New Bible Growth</string>
+</resources>
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp" android:background="#0A1931">
+ <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="New Bible Growth 1.1.0 - 🔊 Audio" android:textColor="#FFD700" android:textStyle="bold" android:textSize="18sp"/>
+ <TextView android:id="@+id/verseText" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="20dp" android:text="Genesis 1:1 - In the beginning God created...\n\nChiyambi 1:1 - Pachiyambi Mulungu..." android:textColor="#E0E0E0" android:textSize="16sp"/>
+ <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+  <Button android:id="@+id/btnPlay" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="🔊 Play"/>
+  <Button android:id="@+id/btnPause" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="⏸️ Pause"/>
+  <Button android:id="@+id/btnStop" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="⏹️ Stop"/>
+ </LinearLayout>
+</LinearLayout>
+
+package com.comfortgeek.newbiblegrowth;
+import android.app.Activity;
+import android.os.Bundle;
+import android.speech.tts.TextToSpeech;
+import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
+import java.util.Locale;
+public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
+ private TextToSpeech tts;
+ private TextView verseText;
+ private boolean isTtsReady = false;
+ @Override
+ protected void onCreate(Bundle savedInstanceState) {
+  super.onCreate(savedInstanceState);
+  setContentView(R.layout.activity_main);
+  verseText = findViewById(R.id.verseText);
+  Button btnPlay = findViewById(R.id.btnPlay);
+  Button btnPause = findViewById(R.id.btnPause);
+  Button btnStop = findViewById(R.id.btnStop);
+  tts = new TextToSpeech(this, this);
+  btnPlay.setOnClickListener(v -> {
+   if(isTtsReady){
+    String text = verseText.getText().toString();
+    tts.setSpeechRate(0.9f);
+    tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "verse");
+   } else { Toast.makeText(this, "Audio loading...", Toast.LENGTH_SHORT).show(); }
+  });
+  btnPause.setOnClickListener(v -> { if(tts!= null) tts.stop(); });
+  btnStop.setOnClickListener(v -> { if(tts!= null) tts.stop(); });
+ }
+ @Override
+ public void onInit(int status) {
+  if(status == TextToSpeech.SUCCESS){
+   tts.setLanguage(Locale.ENGLISH);
+   tts.setSpeechRate(0.9f);
+   isTtsReady = true;
+  }
+ }
+ @Override
+ protected void onDestroy() {
+  if(tts!= null){ tts.stop(); tts.shutdown(); }
+  super.onDestroy();
+ }
+}
