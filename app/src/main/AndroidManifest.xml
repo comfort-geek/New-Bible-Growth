@@ -1,11 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.comfortgeek.newbiblegrowth">
- <application android:allowBackup="true" android:label="New Bible Growth" android:theme="@android:style/Theme.NoTitleBar">
-  <activity android:name=".MainActivity" android:exported="true">
-   <intent-filter>
-    <action android:name="android.intent.action.MAIN" />
-    <category android:name="android.intent.category.LAUNCHER" />
-   </intent-filter>
-  </activity>
- </application>
-</manifest>
+<manifest><application android:theme="@style/Theme.AppCompat.Light">
+<activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+<activity android:name=".CommentaryActivity"/>
+</application></manifest>
