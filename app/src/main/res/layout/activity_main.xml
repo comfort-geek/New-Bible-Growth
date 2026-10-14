@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="16dp" android:background="#0A1931">
- <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="New Bible Growth 1.1.0 - 🔊 Audio" android:textColor="#FFD700" android:textStyle="bold" android:textSize="18sp"/>
- <TextView android:id="@+id/verseText" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="20dp" android:text="Genesis 1:1 - In the beginning God created...\n\nChiyambi 1:1 - Pachiyambi Mulungu..." android:textColor="#E0E0E0" android:textSize="16sp"/>
- <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
-  <Button android:id="@+id/btnPlay" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="🔊 Play"/>
-  <Button android:id="@+id/btnPause" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="⏸️ Pause"/>
-  <Button android:id="@+id/btnStop" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="⏹️ Stop"/>
- </LinearLayout>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="12dp">
+    <TextView android:text="Enduring Word Commentary" android:textSize="22sp" android:textStyle="bold" android:fontFamily="serif" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="12dp"/>
+    <EditText android:id="@+id/search" android:hint="Search commentary..." android:layout_width="match_parent" android:layout_height="50dp" android:background="@android:drawable/edit_text"/>
+    <TextView android:id="@+id/recentText" android:text="Recent: None" android:fontFamily="serif" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="8dp"/>
+    <androidx.recyclerview.widget.RecyclerView android:id="@+id/bookList" android:layout_width="match_parent" android:layout_height="match_parent"/>
 </LinearLayout>
