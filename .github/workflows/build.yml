@@ -1,4 +1,4 @@
-name: Build Enduring Word APK - SQLite
+name: Build Enduring Word APK - SQLite FINAL FIX 2
 on: [push]
 jobs:
   build:
@@ -9,22 +9,37 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Build SQLite Bible App
+      - name: Fix Build - Delete Bad Root build.gradle
         run: |
-          rm -rf app/build.gradle settings.gradle gradle.properties local.properties gradlew gradle gradle-wrapper.*
+          mkdir -p /tmp/save
+          if [ -f app/src/main/assets/bible.db ]; then cp app/src/main/assets/bible.db /tmp/save/bible.db; echo "Saved DB"; fi
+          if [ -f app/src/main/assets/bible.sqlite ]; then cp app/src/main/assets/bible.sqlite /tmp/save/bible.db; fi
+
+          # FORCE DELETE the bad file causing line 6 error
+          rm -rf app build.gradle settings.gradle gradle.properties local.properties gradlew gradle gradle-wrapper.*.gradle
+
           python3 << 'PY'
-          import pathlib, os
+          import pathlib, shutil, os
           pathlib.Path("app/src/main/java/com/enduringword/app").mkdir(parents=True, exist_ok=True)
           pathlib.Path("app/src/main/assets").mkdir(parents=True, exist_ok=True)
+          if pathlib.Path("/tmp/save/bible.db").exists():
+              shutil.copy("/tmp/save/bible.db", "app/src/main/assets/bible.db")
+              print("Restored DB")
+
           sdk = os.environ.get('ANDROID_HOME','/usr/local/lib/android/sdk')
           open("local.properties","w").write(f"sdk.dir={sdk}\n")
+
+          # FIX 1: Root build.gradle MUST BE EMPTY - Fixes "line 6 Google" error
+          open("build.gradle","w").write("// Fixed empty root - no repositories here\n")
+
+          # FIX 2: Use PREFER_SETTINGS not FAIL_ON_PROJECT_REPOS - Fixes conflict
           open("settings.gradle","w").write("""
           pluginManagement {
               repositories { google(); mavenCentral(); gradlePluginPortal() }
               plugins { id 'com.android.application' version '8.1.4' }
           }
           dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
               repositories { google(); mavenCentral() }
           }
           include ':app'
@@ -35,78 +50,13 @@ jobs:
           android {
               namespace 'com.enduringword.app'
               compileSdk 33
-              defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 97; versionName '1.0' }
+              defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 98; versionName '1.0' }
               compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
           }
           """)
           open("app/src/main/AndroidManifest.xml","w").write('<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:label="Enduring Word" android:theme="@android:style/Theme.Light"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>')
-          # Check if bible.db exists
-          db_exists = pathlib.Path("app/src/main/assets/bible.db").exists()
-          print(f"bible.db exists in assets? {db_exists}")
-          open("app/src/main/java/com/enduringword/app/MainActivity.java","w").write("""
-          package com.enduringword.app;
-          import android.app.Activity;
-          import android.database.Cursor;
-          import android.database.sqlite.SQLiteDatabase;
-          import android.os.Bundle;
-          import android.widget.TextView;
-          import android.widget.ScrollView;
-          import java.io.File;
-          import java.io.FileOutputStream;
-          import java.io.InputStream;
-          public class MainActivity extends Activity{
-              protected void onCreate(Bundle b){
-                  super.onCreate(b);
-                  ScrollView sv = new ScrollView(this);
-                  TextView tv = new TextView(this);
-                  tv.setPadding(30,30,30,30);
-                  tv.setTextSize(16);
-                  StringBuilder sb = new StringBuilder();
-                  sb.append("Enduring Word - Bible\\n\\n");
-                  try{
-                      File outFile = new File(getFilesDir(), "bible.db");
-                      if(!outFile.exists()){
-                          InputStream is = getAssets().open("bible.db");
-                          FileOutputStream fos = new FileOutputStream(outFile);
-                          byte[] buf = new byte[1024];
-                          int len;
-                          while((len=is.read(buf))>0) fos.write(buf,0,len);
-                          fos.close(); is.close();
-                      }
-                      SQLiteDatabase db = SQLiteDatabase.openDatabase(outFile.getPath(), null, SQLiteDatabase.OPEN_READONLY);
-                      Cursor c = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'", null);
-                      sb.append("Tables found:\\n");
-                      while(c.moveToNext()){
-                          sb.append("- ").append(c.getString(0)).append("\\n");
-                      }
-                      c.close();
-                      // Try to show first 20 verses if verses table exists
-                      try{
-                          Cursor v = db.rawQuery("SELECT * FROM verses LIMIT 20", null);
-                          sb.append("\\nFirst verses:\\n");
-                          while(v.moveToNext()){
-                              for(int i=0;i<v.getColumnCount();i++){
-                                  sb.append(v.getColumnName(i)).append(": ").append(v.getString(i)).append(" ");
-                              }
-                              sb.append("\\n\\n");
-                          }
-                          v.close();
-                      }catch(Exception e){
-                          sb.append("\\nNo verses table, but DB loaded!\\n").append(e.getMessage());
-                      }
-                      db.close();
-                  }catch(Exception e){
-                      sb.append("DB not found in assets/bible.db\\n");
-                      sb.append("Error: ").append(e.toString()).append("\\n\\n");
-                      sb.append("Make sure you uploaded your sqlite file to:\\n");
-                      sb.append("app/src/main/assets/bible.db");
-                  }
-                  tv.setText(sb.toString());
-                  sv.addView(tv);
-                  setContentView(sv);
-              }
-          }
-          """)
+          open("app/src/main/java/com/enduringword/app/MainActivity.java","w").write('package com.enduringword.app;import android.app.Activity;import android.database.Cursor;import android.database.sqlite.SQLiteDatabase;import android.os.Bundle;import android.widget.TextView;import android.widget.ScrollView;import java.io.File;import java.io.FileOutputStream;import java.io.InputStream;public class MainActivity extends Activity{protected void onCreate(Bundle b){super.onCreate(b);ScrollView sv=new ScrollView(this);TextView tv=new TextView(this);tv.setPadding(30,30,30,30);tv.setTextSize(16);StringBuilder sb=new StringBuilder();sb.append("Enduring Word\\n\\n");try{File outFile=new File(getFilesDir(),"bible.db");if(!outFile.exists()){InputStream is=getAssets().open("bible.db");FileOutputStream fos=new FileOutputStream(outFile);byte[] buf=new byte[4096];int len;while((len=is.read(buf))>0)fos.write(buf,0,len);fos.close();is.close();}SQLiteDatabase db=SQLiteDatabase.openDatabase(outFile.getPath(),null,SQLiteDatabase.OPEN_READONLY);Cursor c=db.rawQuery("SELECT name FROM sqlite_master WHERE type=\'table\'",null);sb.append("Tables:\\n");while(c.moveToNext())sb.append("- ").append(c.getString(0)).append("\\n");c.close();try{Cursor v=db.rawQuery("SELECT * FROM verses LIMIT 10",null);sb.append("\\nSample verses:\\n");while(v.moveToNext()){for(int i=0;i<v.getColumnCount();i++)sb.append(v.getColumnName(i)).append(": ").append(v.getString(i)).append(" ");sb.append("\\n\\n");}v.close();}catch(Exception e){sb.append("\\nDB loaded ok\\n");}db.close();}catch(Exception e){sb.append("Upload DB to app/src/main/assets/bible.db\\n").append(e.toString());}tv.setText(sb.toString());sv.addView(tv);setContentView(sv);}}')
+          print("Fixed: Empty root build.gradle + PREFER_SETTINGS")
           PY
       - name: Build APK
         uses: gradle/gradle-build-action@v3
@@ -115,5 +65,5 @@ jobs:
           arguments: assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-SQLite-Bible
+          name: EnduringWord-SQLite-Fixed
           path: app/build/outputs/apk/debug/*.apk
