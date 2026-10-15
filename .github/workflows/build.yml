@@ -1,4 +1,4 @@
-name: Build Enduring Word APK - V92 FIX
+name: Build Enduring Word APK - SQLite
 on: [push]
 jobs:
   build:
@@ -9,12 +9,13 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Clean and Rebuild Correct Files
+      - name: Build SQLite Bible App
         run: |
-          rm -rf app build.gradle settings.gradle gradle.properties local.properties gradlew gradle gradle-wrapper.*
+          rm -rf app/build.gradle settings.gradle gradle.properties local.properties gradlew gradle gradle-wrapper.*
           python3 << 'PY'
           import pathlib, os
           pathlib.Path("app/src/main/java/com/enduringword/app").mkdir(parents=True, exist_ok=True)
+          pathlib.Path("app/src/main/assets").mkdir(parents=True, exist_ok=True)
           sdk = os.environ.get('ANDROID_HOME','/usr/local/lib/android/sdk')
           open("local.properties","w").write(f"sdk.dir={sdk}\n")
           open("settings.gradle","w").write("""
@@ -34,21 +35,85 @@ jobs:
           android {
               namespace 'com.enduringword.app'
               compileSdk 33
-              defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 92; versionName '1.0' }
+              defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 97; versionName '1.0' }
               compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
           }
           """)
           open("app/src/main/AndroidManifest.xml","w").write('<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:label="Enduring Word" android:theme="@android:style/Theme.Light"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>')
-          open("app/src/main/java/com/enduringword/app/MainActivity.java","w").write('package com.enduringword.app;import android.app.Activity;import android.os.Bundle;import android.widget.TextView;public class MainActivity extends Activity{protected void onCreate(Bundle b){super.onCreate(b);TextView tv=new TextView(this);tv.setTextSize(26);tv.setPadding(50,300,50,50);tv.setText("Enduring Word");setContentView(tv);}}')
-          print("Merged Fixed Code")
+          # Check if bible.db exists
+          db_exists = pathlib.Path("app/src/main/assets/bible.db").exists()
+          print(f"bible.db exists in assets? {db_exists}")
+          open("app/src/main/java/com/enduringword/app/MainActivity.java","w").write("""
+          package com.enduringword.app;
+          import android.app.Activity;
+          import android.database.Cursor;
+          import android.database.sqlite.SQLiteDatabase;
+          import android.os.Bundle;
+          import android.widget.TextView;
+          import android.widget.ScrollView;
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStream;
+          public class MainActivity extends Activity{
+              protected void onCreate(Bundle b){
+                  super.onCreate(b);
+                  ScrollView sv = new ScrollView(this);
+                  TextView tv = new TextView(this);
+                  tv.setPadding(30,30,30,30);
+                  tv.setTextSize(16);
+                  StringBuilder sb = new StringBuilder();
+                  sb.append("Enduring Word - Bible\\n\\n");
+                  try{
+                      File outFile = new File(getFilesDir(), "bible.db");
+                      if(!outFile.exists()){
+                          InputStream is = getAssets().open("bible.db");
+                          FileOutputStream fos = new FileOutputStream(outFile);
+                          byte[] buf = new byte[1024];
+                          int len;
+                          while((len=is.read(buf))>0) fos.write(buf,0,len);
+                          fos.close(); is.close();
+                      }
+                      SQLiteDatabase db = SQLiteDatabase.openDatabase(outFile.getPath(), null, SQLiteDatabase.OPEN_READONLY);
+                      Cursor c = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'", null);
+                      sb.append("Tables found:\\n");
+                      while(c.moveToNext()){
+                          sb.append("- ").append(c.getString(0)).append("\\n");
+                      }
+                      c.close();
+                      // Try to show first 20 verses if verses table exists
+                      try{
+                          Cursor v = db.rawQuery("SELECT * FROM verses LIMIT 20", null);
+                          sb.append("\\nFirst verses:\\n");
+                          while(v.moveToNext()){
+                              for(int i=0;i<v.getColumnCount();i++){
+                                  sb.append(v.getColumnName(i)).append(": ").append(v.getString(i)).append(" ");
+                              }
+                              sb.append("\\n\\n");
+                          }
+                          v.close();
+                      }catch(Exception e){
+                          sb.append("\\nNo verses table, but DB loaded!\\n").append(e.getMessage());
+                      }
+                      db.close();
+                  }catch(Exception e){
+                      sb.append("DB not found in assets/bible.db\\n");
+                      sb.append("Error: ").append(e.toString()).append("\\n\\n");
+                      sb.append("Make sure you uploaded your sqlite file to:\\n");
+                      sb.append("app/src/main/assets/bible.db");
+                  }
+                  tv.setText(sb.toString());
+                  sv.addView(tv);
+                  setContentView(sv);
+              }
+          }
+          """)
           PY
       - name: Build APK
         uses: gradle/gradle-build-action@v3
         with:
           gradle-version: 8.5
           arguments: assembleDebug
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-APK-V92
+          name: EnduringWord-SQLite-Bible
           path: app/build/outputs/apk/debug/*.apk
