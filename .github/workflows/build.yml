@@ -1,4 +1,4 @@
-name: Build Enduring Word APK - V88 FINAL
+name: Build Enduring Word APK - V89 FINAL
 on: [push]
 jobs:
   build:
@@ -11,31 +11,32 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Clean and Rebuild ALL Files
+      - name: Deep Clean ROOT build.gradle
         run: |
+          ls -la
+          cat build.gradle || echo "no root build.gradle"
+          rm -f build.gradle
+          rm -rf app build.gradle gradle.properties settings.gradle gradlew gradle
+          echo "ROOT build.gradle DELETED"
           python3 << 'PY'
-          import os, shutil, pathlib
-          for p in ["app","build",".gradle","settings.gradle","gradle.properties","gradlew","gradle"]:
-              if os.path.exists(p):
-                  if os.path.isdir(p): shutil.rmtree(p, ignore_errors=True)
-                  else: os.remove(p)
+          import pathlib
           pathlib.Path("app/src/main/java/com/enduringword/app").mkdir(parents=True, exist_ok=True)
           open("settings.gradle","w").write("pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }\ninclude ':app'\n")
           open("gradle.properties","w").write("org.gradle.jvmargs=-Xmx2g\nandroid.useAndroidX=true\n")
-          open("app/build.gradle","w").write("plugins { id 'com.android.application' }\nandroid { namespace 'com.enduringword.app'; compileSdk 34; defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 34; versionCode 88; versionName '1.0' } compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }\ndependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }\n")
+          open("app/build.gradle","w").write("plugins { id 'com.android.application' }\nandroid { namespace 'com.enduringword.app'; compileSdk 34; defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 34; versionCode 89; versionName '1.0' } compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }\ndependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }\n")
           open("app/src/main/AndroidManifest.xml","w").write('<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:label="Enduring Word"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>')
-          open("app/src/main/java/com/enduringword/app/MainActivity.java","w").write('package com.enduringword.app;import android.os.Bundle;import android.widget.TextView;import androidx.appcompat.app.AppCompatActivity;public class MainActivity extends AppCompatActivity{protected void onCreate(Bundle b){super.onCreate(b);TextView tv=new TextView(this);tv.setText("Enduring Word V88 GREEN!");tv.setTextSize(22);setContentView(tv);}}')
-          print("rebuild done without setup-android")
+          open("app/src/main/java/com/enduringword/app/MainActivity.java","w").write('package com.enduringword.app;import android.os.Bundle;import android.widget.TextView;import androidx.appcompat.app.AppCompatActivity;public class MainActivity extends AppCompatActivity{protected void onCreate(Bundle b){super.onCreate(b);TextView tv=new TextView(this);tv.setText("V89 GREEN - Root Fixed");tv.setTextSize(24);setContentView(tv);}}')
+          print("V89 rebuild complete")
           PY
 
       - name: Build APK
         uses: gradle/gradle-build-action@v3
         with:
           gradle-version: 8.5
-          arguments: assembleDebug --stacktrace
+          arguments: assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-APK-V88-FINAL
+          name: EnduringWord-APK-V89
           path: app/build/outputs/apk/debug/*.apk
