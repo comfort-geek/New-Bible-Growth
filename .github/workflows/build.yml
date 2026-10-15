@@ -1,42 +1,57 @@
-name: Build Enduring Word APK - V89 FINAL
+name: Build Enduring Word APK - V92 FIX
 on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
-      - name: Deep Clean ROOT build.gradle
+      - name: Clean and Rebuild Correct Files
         run: |
-          ls -la
-          cat build.gradle || echo "no root build.gradle"
-          rm -f build.gradle
-          rm -rf app build.gradle gradle.properties settings.gradle gradlew gradle
-          echo "ROOT build.gradle DELETED"
+          rm -rf app build.gradle settings.gradle gradle.properties local.properties gradlew gradle gradle-wrapper.*
           python3 << 'PY'
-          import pathlib
+          import pathlib, os
           pathlib.Path("app/src/main/java/com/enduringword/app").mkdir(parents=True, exist_ok=True)
-          open("settings.gradle","w").write("pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }\ninclude ':app'\n")
+          sdk = os.environ.get('ANDROID_HOME','/usr/local/lib/android/sdk')
+          open("local.properties","w").write(f"sdk.dir={sdk}\n")
+          # FIX 1: settings.gradle WITH plugin version
+          open("settings.gradle","w").write("""
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+              plugins { id 'com.android.application' version '8.1.4' }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          include ':app'
+          """)
           open("gradle.properties","w").write("org.gradle.jvmargs=-Xmx2g\nandroid.useAndroidX=true\n")
-          open("app/build.gradle","w").write("plugins { id 'com.android.application' }\nandroid { namespace 'com.enduringword.app'; compileSdk 34; defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 34; versionCode 89; versionName '1.0' } compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }\ndependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }\n")
-          open("app/src/main/AndroidManifest.xml","w").write('<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:label="Enduring Word"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>')
-          open("app/src/main/java/com/enduringword/app/MainActivity.java","w").write('package com.enduringword.app;import android.os.Bundle;import android.widget.TextView;import androidx.appcompat.app.AppCompatActivity;public class MainActivity extends AppCompatActivity{protected void onCreate(Bundle b){super.onCreate(b);TextView tv=new TextView(this);tv.setText("V89 GREEN - Root Fixed");tv.setTextSize(24);setContentView(tv);}}')
-          print("V89 rebuild complete")
+          # FIX 2: app/build.gradle now works because settings has version
+          open("app/build.gradle","w").write("""
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.enduringword.app'
+              compileSdk 33
+              defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 92; versionName '1.0' }
+              compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+          }
+          dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }
+          """)
+          open("app/src/main/AndroidManifest.xml","w").write('<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:label="Enduring Word V92"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>')
+          open("app/src/main/java/com/enduringword/app/MainActivity.java","w").write('package com.enduringword.app;import android.os.Bundle;import android.widget.TextView;import androidx.appcompat.app.AppCompatActivity;public class MainActivity extends AppCompatActivity{protected void onCreate(Bundle b){super.onCreate(b);TextView tv=new TextView(this);tv.setText("V92 GREEN FIXED!");setContentView(tv);}}')
+          print("Files fixed with plugin version 8.1.4")
           PY
-
       - name: Build APK
         uses: gradle/gradle-build-action@v3
         with:
           gradle-version: 8.5
           arguments: assembleDebug
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-APK-V89
+          name: EnduringWord-APK-V92
           path: app/build/outputs/apk/debug/*.apk
