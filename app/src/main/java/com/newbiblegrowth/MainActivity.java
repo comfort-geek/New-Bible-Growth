@@ -3,6 +3,7 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.webkit.WebView;
 public class MainActivity extends Activity {
+    @Override
     public void onCreate(Bundle s) {
         super.onCreate(s);
         WebView w = new WebView(this);
