@@ -1,10 +1,35 @@
 package com.newbiblegrowth;
-import android.content.Context; import android.database.Cursor; import android.database.sqlite.*; import java.io.*;
+import android.content.Context; import android.database.Cursor; import android.database.sqlite.*; import java.io.*; import java.net.*;
 public class DatabaseHelper extends SQLiteOpenHelper {
-    Context ctx; String DB_NAME="enduring_word_structured.sqlite3";
-    public DatabaseHelper(Context c){super(c,"enduring_word_structured.sqlite3",null,2); ctx=c; copyDB();}
-    void copyDB(){try{File f=ctx.getDatabasePath(DB_NAME); if(!f.exists()){f.getParentFile().mkdirs(); InputStream in=ctx.getAssets().open(DB_NAME); OutputStream out=new FileOutputStream(f); byte[] b=new byte[4096]; int l; while((l=in.read(b))>0)out.write(b,0,l); out.close(); in.close();}}catch(Exception e){e.printStackTrace();}}
-    public void onCreate(SQLiteDatabase db){db.execSQL("CREATE TABLE IF NOT EXISTS user_bookmarks(id INTEGER PRIMARY KEY, book_id INT, chapter INT, section_title TEXT, time DATETIME DEFAULT CURRENT_TIMESTAMP)"); db.execSQL("CREATE TABLE IF NOT EXISTS user_notes(id INTEGER PRIMARY KEY, book_id INT, chapter INT, section_title TEXT, note TEXT)"); db.execSQL("CREATE TABLE IF NOT EXISTS recent_reads(book_id INT PRIMARY KEY, chapter INT, time DATETIME DEFAULT CURRENT_TIMESTAMP)");}
+    Context ctx;
+    String DB_NAME="enduring_word_structured.sqlite3";
+    String DOWNLOAD_URL="https://files.catbox.moe/xwjvnv.sqlite3";
+
+    public DatabaseHelper(Context c){super(c,"enduring_word_structured.sqlite3",null,2); ctx=c; checkAndDownload();}
+
+    void checkAndDownload(){
+        File f=ctx.getDatabasePath(DB_NAME);
+        if(!f.exists()){
+            f.getParentFile().mkdirs();
+            new Thread(()->{
+                try{
+                    URL url=new URL(DOWNLOAD_URL);
+                    HttpURLConnection conn=(HttpURLConnection)url.openConnection();
+                    conn.setConnectTimeout(30000);
+                    InputStream in=conn.getInputStream();
+                    OutputStream out=new FileOutputStream(f);
+                    byte[] b=new byte[8192]; int len;
+                    while((len=in.read(b))>0) out.write(b,0,len);
+                    out.close(); in.close();
+                }catch(Exception e){e.printStackTrace();}
+            }).start();
+        }
+    }
+    public void onCreate(SQLiteDatabase db){
+        db.execSQL("CREATE TABLE IF NOT EXISTS user_bookmarks(id INTEGER PRIMARY KEY, book_id INT, chapter INT, section_title TEXT, time DATETIME DEFAULT CURRENT_TIMESTAMP)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS user_notes(id INTEGER PRIMARY KEY, book_id INT, chapter INT, section_title TEXT, note TEXT)");
+        db.execSQL("CREATE TABLE IF NOT EXISTS recent_reads(book_id INT PRIMARY KEY, chapter INT, time DATETIME DEFAULT CURRENT_TIMESTAMP)");
+    }
     public void onUpgrade(SQLiteDatabase db,int o,int n){onCreate(db);}
     public Cursor getCommentary(int b,int c){return getReadableDatabase().rawQuery("SELECT rowid, section_title, content_text FROM commentaries WHERE book_id=? AND chapter=? ORDER BY rowid", new String[]{String.valueOf(b), String.valueOf(c)});}
     public Cursor search(String q){return getReadableDatabase().rawQuery("SELECT book_id, chapter, section_title, content_text FROM commentaries WHERE content_text LIKE? OR section_title LIKE? LIMIT 100", new String[]{"%"+q+"%","%"+q+"%"});}
