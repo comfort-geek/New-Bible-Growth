@@ -1,4 +1,4 @@
-name: Build New Bible Growth APK - V95
+name: Build Enduring Word APK - FIXED
 on: [push]
 jobs:
   build:
@@ -9,29 +9,45 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Build Fixed APK
+      - name: Build APK - Back to 2MB version
         run: |
-          rm -rf app build.gradle settings.gradle gradle.properties local.properties gradlew gradle build.gradle
+          rm -rf app build.gradle settings.gradle gradle.properties local.properties gradlew gradle
           python3 << 'PY'
           import pathlib, os
-          p = pathlib.Path("app/src/main/java/com/newbiblegrowth/app")
-          p.mkdir(parents=True, exist_ok=True)
-          pathlib.Path("app/src/main").mkdir(parents=True, exist_ok=True)
+          pathlib.Path("app/src/main/java/com/enduringword/app").mkdir(parents=True, exist_ok=True)
           sdk = os.environ.get('ANDROID_HOME','/usr/local/lib/android/sdk')
           open("local.properties","w").write(f"sdk.dir={sdk}\n")
-          open("settings.gradle","w").write("pluginManagement{repositories{google();mavenCentral();gradlePluginPortal()} plugins{id 'com.android.application' version '8.1.4'}} dependencyResolutionManagement{repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS) repositories{google();mavenCentral()}} include ':app'")
+          open("settings.gradle","w").write("""
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+              plugins { id 'com.android.application' version '8.1.4' }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          include ':app'
+          """)
           open("gradle.properties","w").write("org.gradle.jvmargs=-Xmx2g\nandroid.useAndroidX=true\n")
-          open("app/build.gradle","w").write("plugins{id 'com.android.application'} android{namespace 'com.newbiblegrowth.app' compileSdk 33 defaultConfig{applicationId 'com.newbiblegrowth.app' minSdk 21 targetSdk 33 versionCode 95 versionName '1.0'} compileOptions{sourceCompatibility JavaVersion.VERSION_17 targetCompatibility JavaVersion.VERSION_17}}")
-          open("app/src/main/AndroidManifest.xml","w").write('<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:label="New Bible Growth" android:theme="@android:style/Theme.Light"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>')
-          open("app/src/main/java/com/newbiblegrowth/app/MainActivity.java","w").write('package com.newbiblegrowth.app;import android.app.Activity;import android.os.Bundle;import android.widget.TextView;public class MainActivity extends Activity{protected void onCreate(Bundle b){super.onCreate(b);TextView tv=new TextView(this);tv.setTextSize(28);tv.setPadding(60,300,60,60);tv.setText("New Bible Growth");setContentView(tv);}}')
+          open("app/build.gradle","w").write("""
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.enduringword.app'
+              compileSdk 33
+              defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 92; versionName '1.0' }
+              compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+          }
+          """)
+          # Title = Enduring Word + NO CRASH
+          open("app/src/main/AndroidManifest.xml","w").write('<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:label="Enduring Word" android:theme="@android:style/Theme.Light"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>')
+          open("app/src/main/java/com/enduringword/app/MainActivity.java","w").write('package com.enduringword.app;import android.app.Activity;import android.os.Bundle;import android.widget.TextView;public class MainActivity extends Activity{protected void onCreate(Bundle b){super.onCreate(b);TextView tv=new TextView(this);tv.setTextSize(26);tv.setPadding(50,300,50,50);tv.setText("Enduring Word");setContentView(tv);}}')
+          print("Back to V92 good build")
           PY
       - uses: gradle/gradle-build-action@v3
         with:
           gradle-version: 8.5
           arguments: assembleDebug
-      - name: Check APK size
-        run: ls -lh app/build/outputs/apk/debug/
       - uses: actions/upload-artifact@v4
         with:
-          name: New-Bible-Growth-APK
+          name: EnduringWord-APK-V92-FIXED
           path: app/build/outputs/apk/debug/*.apk
