@@ -5,34 +5,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Download 70MB DB from your Release
+      - name: Download 70MB DB
         run: |
-          echo "Downloading DB from your Release..."
           wget -O enduring_word_full.db "https://github.com/comfort-geek/New-Bible-Growth/releases/download/V1.2/enduring_word_full.db"
           ls -lh enduring_word_full.db
-          # Check it actually downloaded 70MB, not 1KB error page
-          SIZE=$(stat -c%s enduring_word_full.db)
-          echo "Size: $SIZE bytes"
-          if [ $SIZE -lt 10000000 ]; then echo "Download failed - file too small!"; cat enduring_word_full.db; exit 1; fi
-          echo "DB OK - 70MB downloaded"
-
+          if [ $(stat -c%s enduring_word_full.db) -lt 10000000 ]; then echo "Download failed"; exit 1; fi
       - uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install Buildozer dependencies
+        with: {python-version: '3.10'}
+      - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y openjdk-17-jdk zip unzip autoconf libtool pkg-config zlib1g-dev libffi-dev libssl-dev cmake
-
-      - name: Build APK with Buildozer
+      - name: Build APK
         run: |
           pip install buildozer cython==0.29.33
           buildozer android debug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: enduring-word-apk-offline
-          path: bin/*.apk
+      - uses: actions/upload-artifact@v4
+        with: {name: enduring-word-apk, path: bin/*.apk}
