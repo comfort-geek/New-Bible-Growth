@@ -1,109 +1,38 @@
-name: build
-on: [push]
+name: Build APK
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-      - name: Fix Build
+      
+      - name: Download 70MB DB from your Release
         run: |
-          rm -rf build.gradle app/build.gradle settings.gradle gradle.properties app/src/main/java
-          cat > settings.gradle <<'END'
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-          include ':app'
-          END
-          cat > gradle.properties <<'END'
-          org.gradle.jvmargs=-Xmx2g
-          android.useAndroidX=true
-          END
-          mkdir -p app/src/main/java/com/enduringword/app
-          cat > app/build.gradle <<'END'
-          buildscript {
-            repositories { google(); mavenCentral() }
-            dependencies { classpath 'com.android.tools.build:gradle:8.1.2' }
-          }
-          apply plugin: 'com.android.application'
-          android {
-            namespace 'com.enduringword.app'
-            compileSdk 33
-            defaultConfig {
-              applicationId 'com.enduringword.app'
-              minSdk 21
-              targetSdk 33
-              versionCode 320
-              versionName 'Fixed-PM-Import'
-            }
-            compileOptions {
-              sourceCompatibility JavaVersion.VERSION_17
-              targetCompatibility JavaVersion.VERSION_17
-            }
-          }
-          dependencies {
-            implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
-            implementation 'androidx.core:core:1.10.1'
-          }
-          END
-          cat > app/src/main/AndroidManifest.xml <<'END'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.POST_NOTIFICATIONS"/><application android:label="Enduring Word" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher" android:theme="@android:style/Theme.Material.Light"><activity android:name=".MainActivity" android:exported="true" android:icon="@mipmap/ic_launcher"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>
-          END
-          cat > app/src/main/java/com/enduringword/app/MainActivity.java <<'END'
-          package com.enduringword.app;
-          import android.app.*; import android.content.*; import android.content.pm.PackageManager; import android.database.Cursor; import android.database.sqlite.SQLiteDatabase; import android.graphics.*; import android.os.*; import android.speech.tts.TextToSpeech; import android.text.*; import android.text.style.BackgroundColorSpan; import android.view.*; import android.widget.*; import androidx.core.app.NotificationCompat; import java.io.*; import java.util.*;
-          public class MainActivity extends Activity implements TextToSpeech.OnInitListener{
-            String[] ot={"Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalms","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi"};
-            String[] nt={"Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation"};
-            String[] all; int curBook=0,curChap=1; SQLiteDatabase db; TextView content,tvBook,tvChap; ScrollView sv; TextToSpeech tts; float downX; boolean isNight=false; float fontSize=19; MyDrawer drawer;
-            protected void onCreate(Bundle b){ super.onCreate(b);
-              all=new String[66]; System.arraycopy(ot,0,all,0,39); System.arraycopy(nt,0,all,39,27);
-              drawer=new MyDrawer(this);
-              LinearLayout main=new LinearLayout(this); main.setOrientation(LinearLayout.VERTICAL); main.setBackgroundColor(Color.parseColor("#F5F5F0"));
-              LinearLayout top=new LinearLayout(this); top.setOrientation(LinearLayout.HORIZONTAL); top.setBackgroundColor(Color.parseColor("#4B0000")); top.setPadding(12,16,12,16); top.setGravity(Gravity.CENTER_VERTICAL);
-              tvBook=new TextView(this); tvBook.setText(all[curBook]+" ▼ "); tvBook.setTextColor(Color.WHITE); tvBook.setTextSize(16); tvBook.setTypeface(null,Typeface.BOLD);
-              tvChap=new TextView(this); tvChap.setText(curChap+" ▼ "); tvChap.setTextColor(Color.WHITE); tvChap.setTextSize(16); tvChap.setPadding(20,0,20,0); tvChap.setTypeface(null,Typeface.BOLD);
-              TextView tvBrand=new TextView(this); tvBrand.setText(" Enduring Word "); tvBrand.setTextColor(Color.WHITE); tvBrand.setTextSize(13);
-              TextView dots=new TextView(this); dots.setText(" ⋮ "); dots.setTextColor(Color.WHITE); dots.setTextSize(22); dots.setPadding(30,0,10,0);
-              top.addView(tvBook, new LinearLayout.LayoutParams(0,-2,1f)); top.addView(tvChap); top.addView(tvBrand); top.addView(dots);
-              sv=new ScrollView(this); content=new TextView(this); content.setPadding(25,25,25,80); content.setTextSize(fontSize); content.setLineSpacing(8,1.2f); content.setTextColor(Color.parseColor("#111111")); content.setTextIsSelectable(true); sv.addView(content);
-              main.addView(top); main.addView(sv);
-              LinearLayout leftDrawer=new LinearLayout(this); leftDrawer.setOrientation(LinearLayout.VERTICAL); leftDrawer.setBackgroundColor(Color.WHITE);
-              TextView leftTitle=new TextView(this); leftTitle.setText(" OLD TESTAMENT"); leftTitle.setBackgroundColor(Color.parseColor("#4B0000")); leftTitle.setTextColor(Color.WHITE); leftTitle.setPadding(15,25,15,25); leftTitle.setTypeface(null,Typeface.BOLD);
-              ListView leftList=new ListView(this); leftList.setFastScrollEnabled(true); leftList.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, ot)); leftDrawer.addView(leftTitle); leftDrawer.addView(leftList);
-              LinearLayout rightDrawer=new LinearLayout(this); rightDrawer.setOrientation(LinearLayout.VERTICAL); rightDrawer.setBackgroundColor(Color.WHITE);
-              TextView rightTitle=new TextView(this); rightTitle.setText(" NEW TESTAMENT"); rightTitle.setBackgroundColor(Color.parseColor("#1A3C5E")); rightTitle.setTextColor(Color.WHITE); rightTitle.setPadding(15,25,15,25); rightTitle.setTypeface(null,Typeface.BOLD);
-              ListView rightList=new ListView(this); rightList.setFastScrollEnabled(true); rightList.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, nt)); rightDrawer.addView(rightTitle); rightDrawer.addView(rightList);
-              drawer.addView(main, new MyDrawer.LayoutParams(-1,-1)); drawer.addView(leftDrawer, new MyDrawer.LayoutParams(650, -1, Gravity.START)); drawer.addView(rightDrawer, new MyDrawer.LayoutParams(650, -1, Gravity.END));
-              setContentView(drawer);
-              try{ File f=new File(getFilesDir(),"bible.db"); if(!f.exists()||f.length()<1000){ InputStream is=getAssets().open("bible.db"); FileOutputStream fos=new FileOutputStream(f); byte[] buf=new byte[8192]; int l; while((l=is.read(buf))>0) fos.write(buf,0,l); fos.close(); is.close(); } db=SQLiteDatabase.openDatabase(f.getPath(),null,SQLiteDatabase.OPEN_READONLY); }catch(Exception e){ content.setText("DB Error "+e); return; }
-              tts=new TextToSpeech(this,this);
-              Runnable load=()->{ tvBook.setText(all[curBook]+" ▼ "); tvChap.setText(curChap+" ▼ "); try{ Cursor c=db.rawQuery("SELECT section_title, content_html FROM commentaries WHERE book_id=? AND chapter=?", new String[]{String.valueOf(curBook+1), String.valueOf(curChap)}); if(c.moveToFirst()){ String html=c.getString(1); String title=c.getString(0); String clean=Html.fromHtml(html==null?"":html, Html.FROM_HTML_MODE_LEGACY).toString(); content.setText(all[curBook]+" "+curChap+" - "+title+"\n\n"+clean); } else { content.setText(all[curBook]+" "+curChap+" - Enduring Word Commentary\n\nNo commentary"); } c.close(); }catch(Exception e){ content.setText("Load error "+e); } };
-              leftList.setOnItemClickListener((p,vw,pos,id)->{ curBook=pos; curChap=1; load.run(); drawer.closeDrawer(Gravity.START); });
-              rightList.setOnItemClickListener((p,vw,pos,id)->{ curBook=39+pos; curChap=1; load.run(); drawer.closeDrawer(Gravity.END); });
-              tvBook.setOnClickListener(v-> drawer.openDrawer(Gravity.START)); tvBrand.setOnClickListener(v-> drawer.openDrawer(Gravity.END));
-              tvChap.setOnClickListener(v->{ AlertDialog.Builder bd=new AlertDialog.Builder(this); bd.setTitle("Chapter - "+all[curBook]); String[] nums=new String[150]; for(int i=0;i<150;i++) nums[i]="Chapter "+(i+1); bd.setItems(nums, (d,which)->{ curChap=which+1; load.run(); }); bd.show(); });
-              load.run();
-              sv.setOnTouchListener((v,e)->{ if(e.getAction()==MotionEvent.ACTION_DOWN) downX=e.getX(); if(e.getAction()==MotionEvent.ACTION_UP){ float dx=e.getX()-downX; if(Math.abs(dx)>150){ if(dx<0) curChap++; else curChap--; if(curChap<1) curChap=1; if(curChap>150) curChap=150; load.run(); } } return false; });
-              dots.setOnClickListener(vv->{ PopupMenu pm=new PopupMenu(MainActivity.this, dots); pm.getMenu().add(0,1,0,"🔊 Play Audio"); pm.getMenu().add(0,2,0,isNight?"☀️ Day":"🌙 Night"); pm.getMenu().add(0,3,0,"⭐ Favorites"); pm.getMenu().add(0,4,0,"A+ Bigger"); pm.getMenu().add(0,5,0,"A- Smaller"); pm.getMenu().add(0,6,0,"🔔 Daily Verse"); pm.getMenu().add(0,7,0,"🔍 Search"); pm.setOnMenuItemClickListener(item->{ int id=item.getItemId(); if(id==1){ if(tts!=null) tts.speak(content.getText().toString(), TextToSpeech.QUEUE_FLUSH, null, "v"); } if(id==2){ isNight=!isNight; if(isNight){ main.setBackgroundColor(Color.parseColor("#121212")); content.setTextColor(Color.parseColor("#E0E0E0")); sv.setBackgroundColor(Color.parseColor("#121212")); } else { main.setBackgroundColor(Color.parseColor("#F5F5F0")); content.setTextColor(Color.parseColor("#111111")); sv.setBackgroundColor(Color.parseColor("#F5F5F0")); } } if(id==3){ getSharedPreferences("fav",0).edit().putString(all[curBook]+"_"+curChap, all[curBook]+" "+curChap).apply(); Toast.makeText(MainActivity.this,"Added",Toast.LENGTH_SHORT).show(); } if(id==4){ fontSize+=2; content.setTextSize(fontSize); } if(id==5){ fontSize-=2; if(fontSize<12) fontSize=12; content.setTextSize(fontSize); } if(id==6){ showDailyVerseNotification(); } if(id==7){ showSearch(); } return true; }); pm.show(); });
-              if(getSharedPreferences("app",0).getBoolean("first",true)){ showSearch(); getSharedPreferences("app",0).edit().putBoolean("first",false).apply(); }
-              showDailyVerseNotification();
-            }
-            void showSearch(){ AlertDialog.Builder bd=new AlertDialog.Builder(this); bd.setTitle("Search Commentary"); final EditText et=new EditText(this); et.setHint("e.g. Genesis 1"); bd.setView(et); bd.setPositiveButton("Search", (d,w)->{ String q=et.getText().toString().toLowerCase(); for(int i=0;i<all.length;i++){ if(q.contains(all[i].toLowerCase())){ curBook=i; try{ String num=q.replaceAll("[^0-9]"," ").trim().split(" ")[0]; curChap=Integer.parseInt(num); }catch(Exception e){ curChap=1; } tvBook.setText(all[curBook]+" ▼ "); tvChap.setText(curChap+" ▼ "); try{ Cursor c=db.rawQuery("SELECT section_title, content_html FROM commentaries WHERE book_id=? AND chapter=?", new String[]{String.valueOf(curBook+1), String.valueOf(curChap)}); if(c.moveToFirst()){ String html=c.getString(1); String clean=Html.fromHtml(html==null?"":html, Html.FROM_HTML_MODE_LEGACY).toString(); content.setText(all[curBook]+" "+curChap+"\n\n"+clean); } c.close(); }catch(Exception e){} break; } } }); bd.setNegativeButton("Cancel",null); bd.show(); }
-            void showDailyVerseNotification(){ try{ if(Build.VERSION.SDK_INT>=33) if(checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},1); NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE); if(Build.VERSION.SDK_INT>=26){ NotificationChannel chn=new NotificationChannel("daily","Daily Verse",NotificationManager.IMPORTANCE_DEFAULT); nm.createNotificationChannel(chn); } String[] verses={"Genesis 1:1 In the beginning God created"}; String v=verses[0]; NotificationCompat.Builder nb=new NotificationCompat.Builder(this,"daily").setSmallIcon(android.R.drawable.ic_menu_compass).setContentTitle("Daily Verse - Enduring Word").setContentText(v).setStyle(new NotificationCompat.BigTextStyle().bigText(v)).setAutoCancel(true); nm.notify(101, nb.build()); }catch(Exception e){} }
-            public void onInit(int s){}
-            static class MyDrawer extends androidx.drawerlayout.widget.DrawerLayout { public MyDrawer(Context c){ super(c); } }
-          }
-          END
-      - name: Build APK
-        uses: gradle/gradle-build-action@v3
+          echo "Downloading DB from your Release..."
+          wget -O enduring_word_full.db "https://github.com/comfort-geek/New-Bible-Growth/releases/download/V1.2/enduring_word_full.db"
+          ls -lh enduring_word_full.db
+          # Check it actually downloaded 70MB, not 1KB error page
+          SIZE=$(stat -c%s enduring_word_full.db)
+          echo "Size: $SIZE bytes"
+          if [ $SIZE -lt 10000000 ]; then echo "Download failed - file too small!"; cat enduring_word_full.db; exit 1; fi
+          echo "DB OK - 70MB downloaded"
+
+      - uses: actions/setup-python@v5
         with:
-          gradle-version: 8.5
-          arguments: assembleDebug --stacktrace
-      - uses: actions/upload-artifact@v4
+          python-version: '3.10'
+
+      - name: Install Buildozer dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y openjdk-17-jdk zip unzip autoconf libtool pkg-config zlib1g-dev libffi-dev libssl-dev cmake
+
+      - name: Build APK with Buildozer
+        run: |
+          pip install buildozer cython==0.29.33
+          buildozer android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-FixedBuild
-          path: app/build/outputs/apk/debug/*.apk
+          name: enduring-word-apk-offline
+          path: bin/*.apk
