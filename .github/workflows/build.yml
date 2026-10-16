@@ -9,12 +9,17 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Fix
+      - name: Fix Build
         run: |
           rm -rf build.gradle app/build.gradle settings.gradle gradle.properties app/src/main/java
           cat > settings.gradle <<'END'
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          pluginManagement {
+            repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories { google(); mavenCentral() }
+          }
           include ':app'
           END
           cat > gradle.properties <<'END'
@@ -23,8 +28,30 @@ jobs:
           END
           mkdir -p app/src/main/java/com/enduringword/app
           cat > app/build.gradle <<'END'
-          plugins { id 'com.android.application' version '8.1.2' apply true }
-          android { namespace 'com.enduringword.app'; compileSdk 33; defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 318; versionName 'Genesis-1-Start'; } compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17; } }
+          buildscript {
+            repositories { google(); mavenCentral() }
+            dependencies { classpath 'com.android.tools.build:gradle:8.1.2' }
+          }
+          apply plugin: 'com.android.application'
+          android {
+            namespace 'com.enduringword.app'
+            compileSdk 33
+            defaultConfig {
+              applicationId 'com.enduringword.app'
+              minSdk 21
+              targetSdk 33
+              versionCode 319
+              versionName 'Genesis1-Fixed-Build'
+            }
+            compileOptions {
+              sourceCompatibility JavaVersion.VERSION_17
+              targetCompatibility JavaVersion.VERSION_17
+            }
+          }
+          dependencies {
+            implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
+            implementation 'androidx.core:core:1.10.1'
+          }
           END
           cat > app/src/main/AndroidManifest.xml <<'END'
           <?xml version="1.0" encoding="utf-8"?>
@@ -50,18 +77,16 @@ jobs:
               sv=new ScrollView(this); content=new TextView(this); content.setPadding(25,25,25,80); content.setTextSize(fontSize); content.setLineSpacing(8,1.2f); content.setTextColor(Color.parseColor("#111111")); content.setTextIsSelectable(true); sv.addView(content);
               main.addView(top); main.addView(sv);
               LinearLayout leftDrawer=new LinearLayout(this); leftDrawer.setOrientation(LinearLayout.VERTICAL); leftDrawer.setBackgroundColor(Color.WHITE);
-              TextView leftTitle=new TextView(this); leftTitle.setText(" OLD TESTAMENT (Genesis → Malachi)"); leftTitle.setBackgroundColor(Color.parseColor("#4B0000")); leftTitle.setTextColor(Color.WHITE); leftTitle.setPadding(15,25,15,25); leftTitle.setTextSize(12); leftTitle.setTypeface(null,Typeface.BOLD);
-              ListView leftList=new ListView(this); leftList.setFastScrollEnabled(true); leftList.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, ot));
-              leftDrawer.addView(leftTitle); leftDrawer.addView(leftList);
+              TextView leftTitle=new TextView(this); leftTitle.setText(" OLD TESTAMENT"); leftTitle.setBackgroundColor(Color.parseColor("#4B0000")); leftTitle.setTextColor(Color.WHITE); leftTitle.setPadding(15,25,15,25); leftTitle.setTypeface(null,Typeface.BOLD);
+              ListView leftList=new ListView(this); leftList.setFastScrollEnabled(true); leftList.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, ot)); leftDrawer.addView(leftTitle); leftDrawer.addView(leftList);
               LinearLayout rightDrawer=new LinearLayout(this); rightDrawer.setOrientation(LinearLayout.VERTICAL); rightDrawer.setBackgroundColor(Color.WHITE);
-              TextView rightTitle=new TextView(this); rightTitle.setText(" NEW TESTAMENT (Matthew → Revelation)"); rightTitle.setBackgroundColor(Color.parseColor("#1A3C5E")); rightTitle.setTextColor(Color.WHITE); rightTitle.setPadding(15,25,15,25); rightTitle.setTextSize(12); rightTitle.setTypeface(null,Typeface.BOLD);
-              ListView rightList=new ListView(this); rightList.setFastScrollEnabled(true); rightList.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, nt));
-              rightDrawer.addView(rightTitle); rightDrawer.addView(rightList);
+              TextView rightTitle=new TextView(this); rightTitle.setText(" NEW TESTAMENT"); rightTitle.setBackgroundColor(Color.parseColor("#1A3C5E")); rightTitle.setTextColor(Color.WHITE); rightTitle.setPadding(15,25,15,25); rightTitle.setTypeface(null,Typeface.BOLD);
+              ListView rightList=new ListView(this); rightList.setFastScrollEnabled(true); rightList.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, nt)); rightDrawer.addView(rightTitle); rightDrawer.addView(rightList);
               drawer.addView(main, new MyDrawer.LayoutParams(-1,-1)); drawer.addView(leftDrawer, new MyDrawer.LayoutParams(650, -1, Gravity.START)); drawer.addView(rightDrawer, new MyDrawer.LayoutParams(650, -1, Gravity.END));
               setContentView(drawer);
               try{ File f=new File(getFilesDir(),"bible.db"); if(!f.exists()||f.length()<1000){ InputStream is=getAssets().open("bible.db"); FileOutputStream fos=new FileOutputStream(f); byte[] buf=new byte[8192]; int l; while((l=is.read(buf))>0) fos.write(buf,0,l); fos.close(); is.close(); } db=SQLiteDatabase.openDatabase(f.getPath(),null,SQLiteDatabase.OPEN_READONLY); }catch(Exception e){ content.setText("DB Error "+e); return; }
               tts=new TextToSpeech(this,this);
-              Runnable load=()->{ tvBook.setText(all[curBook]+" ▼ "); tvChap.setText(curChap+" ▼ "); try{ Cursor c=db.rawQuery("SELECT section_title, content_html FROM commentaries WHERE book_id=? AND chapter=?", new String[]{String.valueOf(curBook+1), String.valueOf(curChap)}); if(c.moveToFirst()){ String html=c.getString(1); String title=c.getString(0); String clean=Html.fromHtml(html==null?"":html, Html.FROM_HTML_MODE_LEGACY).toString(); content.setText(all[curBook]+" "+curChap+" - "+title+"\n\nFrom bible.db - Enduring Word Commentary\n\n"+clean); } else { content.setText(all[curBook]+" "+curChap+" - Enduring Word Commentary\n\nNo commentary"); } c.close(); }catch(Exception e){ content.setText("Load error "+e); } };
+              Runnable load=()->{ tvBook.setText(all[curBook]+" ▼ "); tvChap.setText(curChap+" ▼ "); try{ Cursor c=db.rawQuery("SELECT section_title, content_html FROM commentaries WHERE book_id=? AND chapter=?", new String[]{String.valueOf(curBook+1), String.valueOf(curChap)}); if(c.moveToFirst()){ String html=c.getString(1); String title=c.getString(0); String clean=Html.fromHtml(html==null?"":html, Html.FROM_HTML_MODE_LEGACY).toString(); content.setText(all[curBook]+" "+curChap+" - "+title+"\n\n"+clean); } else { content.setText(all[curBook]+" "+curChap+" - Enduring Word Commentary\n\nNo commentary"); } c.close(); }catch(Exception e){ content.setText("Load error "+e); } };
               leftList.setOnItemClickListener((p,vw,pos,id)->{ curBook=pos; curChap=1; load.run(); drawer.closeDrawer(Gravity.START); });
               rightList.setOnItemClickListener((p,vw,pos,id)->{ curBook=39+pos; curChap=1; load.run(); drawer.closeDrawer(Gravity.END); });
               tvBook.setOnClickListener(v-> drawer.openDrawer(Gravity.START)); tvBrand.setOnClickListener(v-> drawer.openDrawer(Gravity.END));
@@ -69,12 +94,11 @@ jobs:
               load.run();
               sv.setOnTouchListener((v,e)->{ if(e.getAction()==MotionEvent.ACTION_DOWN) downX=e.getX(); if(e.getAction()==MotionEvent.ACTION_UP){ float dx=e.getX()-downX; if(Math.abs(dx)>150){ if(dx<0) curChap++; else curChap--; if(curChap<1) curChap=1; if(curChap>150) curChap=150; load.run(); } } return false; });
               dots.setOnClickListener(vv->{ PopupMenu pm=new PopupMenu(MainActivity.this, dots); pm.getMenu().add(0,1,0,"🔊 Play Audio"); pm.getMenu().add(0,2,0,isNight?"☀️ Day":"🌙 Night"); pm.getMenu().add(0,3,0,"⭐ Favorites"); pm.getMenu().add(0,4,0,"A+ Bigger"); pm.getMenu().add(0,5,0,"A- Smaller"); pm.getMenu().add(0,6,0,"🔔 Daily Verse"); pm.getMenu().add(0,7,0,"🔍 Search"); pm.setOnMenuItemClickListener(item->{ int id=item.getItemId(); if(id==1){ if(tts!=null) tts.speak(content.getText().toString(), TextToSpeech.QUEUE_FLUSH, null, "v"); } if(id==2){ isNight=!isNight; if(isNight){ main.setBackgroundColor(Color.parseColor("#121212")); content.setTextColor(Color.parseColor("#E0E0E0")); sv.setBackgroundColor(Color.parseColor("#121212")); } else { main.setBackgroundColor(Color.parseColor("#F5F5F0")); content.setTextColor(Color.parseColor("#111111")); sv.setBackgroundColor(Color.parseColor("#F5F5F0")); } } if(id==3){ getSharedPreferences("fav",0).edit().putString(all[curBook]+"_"+curChap, all[curBook]+" "+curChap).apply(); Toast.makeText(MainActivity.this,"Added",Toast.LENGTH_SHORT).show(); } if(id==4){ fontSize+=2; content.setTextSize(fontSize); } if(id==5){ fontSize-=2; if(fontSize<12) fontSize=12; content.setTextSize(fontSize); } if(id==6){ showDailyVerseNotification(); } if(id==7){ showSearch(); } return true; }); pm.show(); });
-              content.setCustomSelectionActionModeCallback(new ActionMode.Callback(){ public boolean onCreateActionMode(ActionMode m,Menu menu){ menu.add(0,1,0,"Yellow"); menu.add(0,2,0,"Green"); menu.add(0,3,0,"Pink"); menu.add(0,4,0,"Blue"); return true; } public boolean onPrepareActionMode(ActionMode m,Menu menu){ return false; } public boolean onActionItemClicked(ActionMode m,MenuItem item){ int s=content.getSelectionStart(); int e=content.getSelectionEnd(); if(s<0||e<0||s==e) return false; Spannable txt=(Spannable)content.getText(); int color=Color.YELLOW; if(item.getItemId()==2) color=Color.parseColor("#A5D6A7"); if(item.getItemId()==3) color=Color.parseColor("#F48FB1"); if(item.getItemId()==4) color=Color.parseColor("#90CAF9"); txt.setSpan(new BackgroundColorSpan(color), s, e, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE); m.finish(); return true; } public void onDestroyActionMode(ActionMode m){} });
               if(getSharedPreferences("app",0).getBoolean("first",true)){ showSearch(); getSharedPreferences("app",0).edit().putBoolean("first",false).apply(); }
               showDailyVerseNotification();
             }
             void showSearch(){ AlertDialog.Builder bd=new AlertDialog.Builder(this); bd.setTitle("Search Commentary"); final EditText et=new EditText(this); et.setHint("e.g. Genesis 1"); bd.setView(et); bd.setPositiveButton("Search", (d,w)->{ String q=et.getText().toString().toLowerCase(); for(int i=0;i<all.length;i++){ if(q.contains(all[i].toLowerCase())){ curBook=i; try{ String num=q.replaceAll("[^0-9]"," ").trim().split(" ")[0]; curChap=Integer.parseInt(num); }catch(Exception e){ curChap=1; } tvBook.setText(all[curBook]+" ▼ "); tvChap.setText(curChap+" ▼ "); try{ Cursor c=db.rawQuery("SELECT section_title, content_html FROM commentaries WHERE book_id=? AND chapter=?", new String[]{String.valueOf(curBook+1), String.valueOf(curChap)}); if(c.moveToFirst()){ String html=c.getString(1); String clean=Html.fromHtml(html==null?"":html, Html.FROM_HTML_MODE_LEGACY).toString(); content.setText(all[curBook]+" "+curChap+"\n\n"+clean); } c.close(); }catch(Exception e){} break; } } }); bd.setNegativeButton("Cancel",null); bd.show(); }
-            void showDailyVerseNotification(){ try{ if(Build.VERSION.SDK_INT>=33) if(checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},1); NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE); if(Build.VERSION.SDK_INT>=26){ NotificationChannel chn=new NotificationChannel("daily","Daily Verse",NotificationManager.IMPORTANCE_DEFAULT); nm.createNotificationChannel(chn); } String[] verses={"Genesis 1:1 In the beginning God created","1 John 3:1 See what great love","Matthew 5:9 Blessed are the peacemakers"}; String v=verses[new java.util.Random().nextInt(verses.length)]; NotificationCompat.Builder nb=new NotificationCompat.Builder(this,"daily").setSmallIcon(android.R.drawable.ic_menu_compass).setContentTitle("Daily Verse - Enduring Word").setContentText(v).setStyle(new NotificationCompat.BigTextStyle().bigText(v)).setAutoCancel(true); nm.notify(101, nb.build()); }catch(Exception e){} }
+            void showDailyVerseNotification(){ try{ if(Build.VERSION.SDK_INT>=33) if(checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},1); NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE); if(Build.VERSION.SDK_INT>=26){ NotificationChannel chn=new NotificationChannel("daily","Daily Verse",NotificationManager.IMPORTANCE_DEFAULT); nm.createNotificationChannel(chn); } String[] verses={"Genesis 1:1 In the beginning God created"}; String v=verses[0]; NotificationCompat.Builder nb=new NotificationCompat.Builder(this,"daily").setSmallIcon(android.R.drawable.ic_menu_compass).setContentTitle("Daily Verse - Enduring Word").setContentText(v).setStyle(new NotificationCompat.BigTextStyle().bigText(v)).setAutoCancel(true); nm.notify(101, nb.build()); }catch(Exception e){} }
             public void onInit(int s){}
             static class MyDrawer extends androidx.drawerlayout.widget.DrawerLayout { public MyDrawer(Context c){ super(c); } }
           }
@@ -86,5 +110,5 @@ jobs:
           arguments: assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-Genesis1
+          name: EnduringWord-FixedBuild
           path: app/build/outputs/apk/debug/*.apk
