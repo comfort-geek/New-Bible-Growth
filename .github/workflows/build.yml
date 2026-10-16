@@ -21,10 +21,26 @@ jobs:
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           END
-          mkdir -p app/src/main/java/com/enduringword/app app/src/main/assets
+          mkdir -p app/src/main/java/com/enduringword/app
           cat > app/build.gradle <<'END'
-          plugins { id 'com.android.application' version '8.1.2' apply true }
-          android { namespace 'com.enduringword.app'; compileSdk 33; defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 308; versionName 'DB-Inspector' } compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }
+          plugins {
+            id 'com.android.application' version '8.1.2' apply true
+          }
+          android {
+            namespace 'com.enduringword.app'
+            compileSdk 33
+            defaultConfig {
+              applicationId 'com.enduringword.app'
+              minSdk 21
+              targetSdk 33
+              versionCode 309
+              versionName 'Inspector'
+            }
+            compileOptions {
+              sourceCompatibility JavaVersion.VERSION_17
+              targetCompatibility JavaVersion.VERSION_17
+            }
+          }
           END
           cat > app/src/main/AndroidManifest.xml <<'END'
           <?xml version="1.0" encoding="utf-8"?>
@@ -44,7 +60,7 @@ jobs:
               StringBuilder out=new StringBuilder();
               try{
                 File f=new File(getFilesDir(),"bible.db");
-                if(!f.exists()){ InputStream is=getAssets().open("bible.db"); FileOutputStream fos=new FileOutputStream(f); byte[] buf=new byte[8192]; int l; while((l=is.read(buf))>0) fos.write(buf,0,l); fos.close(); is.close(); }
+                if(!f.exists()){ java.io.InputStream is=getAssets().open("bible.db"); FileOutputStream fos=new FileOutputStream(f); byte[] buf=new byte[8192]; int l; while((l=is.read(buf))>0) fos.write(buf,0,l); fos.close(); is.close(); }
                 SQLiteDatabase db=SQLiteDatabase.openDatabase(f.getPath(),null,SQLiteDatabase.OPEN_READONLY);
                 out.append("DB SIZE: "+f.length()/1024+" KB\n\n");
                 Cursor tbls=db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'",null);
@@ -66,9 +82,8 @@ jobs:
                   }catch(Exception e){ out.append(" ERROR: "+e+"\n"); }
                   out.append("\n---\n\n");
                 }
-                tbls.close();
-                db.close();
-              }catch(Exception e){ out.append("FATAL: "+e.toString()+"\n"); for(StackTraceElement s:e.getStackTrace()) out.append(s.toString()+"\n"); }
+                tbls.close(); db.close();
+              }catch(Exception e){ out.append("FATAL: "+e.toString()); }
               tv.setText(out.toString());
             }
           }
@@ -80,5 +95,5 @@ jobs:
           arguments: assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4
         with:
-          name: DB-Inspector
+          name: DB-Inspector-Fixed
           path: app/build/outputs/apk/debug/*.apk
