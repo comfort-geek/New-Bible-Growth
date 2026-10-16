@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Download 70MB DB
+      - name: Download DB
         run: |
           wget -O enduring_word_full.db "https://github.com/comfort-geek/New-Bible-Growth/releases/download/V1.2/enduring_word_full.db"
           ls -lh enduring_word_full.db
@@ -17,30 +17,33 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install deps & Java 17
+      - name: Install deps
         run: |
           sudo apt update
-          sudo apt install -y openjdk-17-jdk zip unzip autoconf libtool pkg-config zlib1g-dev libffi-dev libssl-dev cmake
-          java -version
-          echo $JAVA_HOME
+          sudo apt install -y openjdk-17-jdk zip unzip autoconf libtool pkg-config zlib1g-dev libffi-dev libssl-dev cmake libtinfo6
 
-      - name: Clean old SDK conflict
-        run: |
-          rm -rf ~/.buildozer
-          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "24333f8a63b6825ea9c5514f83c1059b8ea4b68" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-
-      - name: Build APK
+      - name: Patch Buildozer for new SDK
         run: |
           pip install --upgrade pip
           pip install cython==0.29.33
           pip install https://github.com/kivy/buildozer/archive/master.zip
           pip install https://github.com/kivy/python-for-android/archive/master.zip
-          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-          export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
-          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+          # Find and patch the sdkmanager path bug
+          BUILDOZER_FILE=$(python -c "import buildozer.targets.android; import os; print(os.path.dirname(buildozer.targets.android.__file__))")/targets/android.py
+          echo "Patching $BUILDOZER_FILE"
+          sed -i 's|tools/bin/sdkmanager|cmdline-tools/latest/bin/sdkmanager|g' $BUILDOZER_FILE
+          sed -i 's|tools/bin/avdmanager|cmdline-tools/latest/bin/avdmanager|g' $BUILDOZER_FILE
+          # Also create old path symlink as backup
+          mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
+          ln -sf ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager || true
+          grep -n "sdkmanager" $BUILDOZER_FILE | head
+
+      - name: Build APK
+        run: |
+          rm -rf ~/.buildozer/android/platform/android-sdk/licenses
+          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
           buildozer android debug
 
       - uses: actions/upload-artifact@v4
