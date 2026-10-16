@@ -17,7 +17,7 @@ jobs:
           python3 << 'PY'
           import pathlib, shutil, os
           pathlib.Path("app/src/main/java/com/enduringword/app").mkdir(parents=True, exist_ok=True)
-          pathlib.Path("app/src/main/assets").mkd exist_ok=True)
+          pathlib.Path("app/src/main/assets").mkdir(parents=True, exist_ok=True)
           if pathlib.Path("/tmp/save/db.db").exists():
               shutil.copy("/tmp/save/db.db", "app/src/main/assets/enduring_word_structured.sqlite3")
           sdk=os.environ.get('ANDROID_HOME','/usr/local/lib/android/sdk')
