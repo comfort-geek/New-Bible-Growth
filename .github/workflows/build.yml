@@ -9,71 +9,72 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Fix Project Files
+      - uses: android-actions/setup-android@v3
+      - name: Fix All Files
         run: |
           mkdir -p /tmp/save
           cp app/src/main/assets/enduring_word_structured.sqlite3 /tmp/save/db.db 2>/dev/null || cp app/src/main/assets/bible.db /tmp/save/db.db 2>/dev/null || true
-          rm -rf app build.gradle settings.gradle gradle.properties local.properties gradlew gradle build.gradle
-          python3 << 'PY'
-          import pathlib, shutil, os
-          pathlib.Path("app/src/main/java/com/enduringword/app").mkdir(parents=True, exist_ok=True)
-          pathlib.Path("app/src/main/assets").mkdir(parents=True, exist_ok=True)
-          if pathlib.Path("/tmp/save/db.db").exists():
-              shutil.copy("/tmp/save/db.db", "app/src/main/assets/enduring_word_structured.sqlite3")
-          sdk=os.environ.get('ANDROID_HOME','/usr/local/lib/android/sdk')
-          open("local.properties","w").write(f"sdk.dir={sdk}\n")
-          # FIXED - simple settings.gradle
-          open("settings.gradle","w").write("include ':app'\n")
-          open("build.gradle","w").write("// root\n")
-          open("gradle.properties","w").write("org.gradle.jvmargs=-Xmx2g\nandroid.useAndroidX=true\n")
-          open("app/build.gradle","w").write("plugins{id 'com.android.application'}\nandroid{namespace 'com.enduringword.app';compileSdk 33;defaultConfig{applicationId 'com.enduringword.app';minSdk 21;targetSdk 33;versionCode 301;versionName 'FullBible'}compileOptions{sourceCompatibility JavaVersion.VERSION_17;targetCompatibility JavaVersion.VERSION_17}}\ndependencies{implementation 'androidx.appcompat:appcompat:1.6.1'}\n")
-          open("app/src/main/AndroidManifest.xml","w").write('<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.POST_NOTIFICATIONS"/><uses-permission android:name="android.permission.INTERNET"/><application android:label="Enduring Word" android:theme="@android:style/Theme.Material.Light"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>')
-          PY
+          rm -rf app build.gradle settings.gradle gradle.properties gradle build
+          cat > settings.gradle <<'GRADLE'
+          pluginManagement {
+            repositories {
+              google()
+              mavenCentral()
+              gradlePluginPortal()
+            }
+          }
+          include ':app'
+          GRADLE
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "org.gradle.jvmargs=-Xmx2g" > gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
+          mkdir -p app/src/main/java/com/enduringword/app app/src/main/assets
+          if [ -f /tmp/save/db.db ]; then cp /tmp/save/db.db app/src/main/assets/enduring_word_structured.sqlite3; fi
+          cat > app/build.gradle <<'GRADLE'
+          plugins { id 'com.android.application' }
+          android {
+            namespace 'com.enduringword.app'
+            compileSdk 33
+            defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 302; versionName 'FullBible-Fix' }
+            compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+          }
+          GRADLE
+          cat > app/src/main/AndroidManifest.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <application android:label="Enduring Word" android:theme="@android:style/Theme.Material.Light">
+              <activity android:name=".MainActivity" android:exported="true">
+                <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          XML
           cat > app/src/main/java/com/enduringword/app/MainActivity.java <<'JAVA'
           package com.enduringword.app;
-          import android.app.Activity; import android.app.NotificationChannel; import android.app.NotificationManager; import android.content.Intent; import android.content.SharedPreferences; import android.database.Cursor; import android.database.sqlite.SQLiteDatabase; import android.graphics.Color; import android.os.Bundle; import android.speech.tts.TextToSpeech; import android.view.View; import android.view.ViewGroup; import android.webkit.WebView; import android.widget.*; import java.io.File; import java.io.FileOutputStream; import java.io.InputStream; import java.util.*;
+          import android.app.Activity; import android.database.Cursor; import android.database.sqlite.SQLiteDatabase; import android.graphics.Color; import android.os.Bundle; import android.speech.tts.TextToSpeech; import android.view.ViewGroup; import android.webkit.WebView; import android.widget.*; import java.io.File; import java.io.FileOutputStream; import java.io.InputStream; import java.util.*;
           public class MainActivity extends Activity implements TextToSpeech.OnInitListener{
-          SQLiteDatabase db; WebView webView; SharedPreferences prefs; TextToSpeech tts; boolean ttsReady=false; Spinner bookSpin, scopeSpin; LinearLayout chapterContainer, verseContainer; EditText searchBox; TextView breadcrumb, footnotesView;
+          SQLiteDatabase db; WebView webView; android.content.SharedPreferences prefs; TextToSpeech tts; boolean ttsReady=false; Spinner bookSpin; LinearLayout chapterContainer, verseContainer; EditText searchBox; TextView breadcrumb;
           List<String> allBooks=Arrays.asList("Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalm","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi","Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation");
-          String currentBook="Genesis"; int currentChapter=1; int currentVerse=1; String currentPlain=""; String currentScope="All Bible";
-          protected void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("ew_full",0);tts=new TextToSpeech(this,this);
-          LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(0xFFF8FAFF);
-          LinearLayout header=new LinearLayout(this);header.setOrientation(LinearLayout.HORIZONTAL);header.setPadding(20,35,15,15);header.setBackgroundColor(0xFF1E3A8A);
-          TextView title=new TextView(this);title.setText("ENDURING WORD");title.setTextColor(Color.WHITE);title.setTextSize(16);title.setTypeface(null,android.graphics.Typeface.BOLD);
-          LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f);header.addView(title,lp);
-          scopeSpin=new Spinner(this);ArrayAdapter<String> scopeAd=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,new String[]{"All Bible","OT Only","NT Only","This Book"});scopeAd.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);scopeSpin.setAdapter(scopeAd);header.addView(scopeSpin);
-          EditText searchTop=new EditText(this);searchTop.setHint("Search");searchTop.setBackgroundColor(Color.WHITE);searchTop.setPadding(12,6,12,6);searchTop.setTextSize(11);LinearLayout.LayoutParams sLp=new LinearLayout.LayoutParams(280,ViewGroup.LayoutParams.WRAP_CONTENT);header.addView(searchTop,sLp);searchBox=searchTop;root.addView(header);
-          breadcrumb=new TextView(this);breadcrumb.setPadding(15,8,15,4);breadcrumb.setTextSize(11);breadcrumb.setTextColor(0xFF64748B);root.addView(breadcrumb);
-          LinearLayout bookRow=new LinearLayout(this);bookRow.setOrientation(LinearLayout.HORIZONTAL);bookRow.setPadding(10,2,10,2);TextView bl=new TextView(this);bl.setText("Book:");bl.setTextSize(11);bookRow.addView(bl);bookSpin=new Spinner(this);ArrayAdapter<String> bookAd=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,allBooks);bookAd.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);bookSpin.setAdapter(bookAd);bookRow.addView(bookSpin);root.addView(bookRow);
-          TextView chL=new TextView(this);chL.setText("Chapter: Genesis-Revelation");chL.setPadding(15,2,15,2);chL.setTextSize(10);chL.setTextColor(0xFF64748B);root.addView(chL);
+          protected void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("ew",0);tts=new TextToSpeech(this,this);
+          LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
+          LinearLayout header=new LinearLayout(this);header.setOrientation(LinearLayout.HORIZONTAL);header.setPadding(20,35,15,15);header.setBackgroundColor(0xFF1E3A8A);TextView title=new TextView(this);title.setText("ENDURING WORD FULL BIBLE");title.setTextColor(Color.WHITE);title.setTextSize(16);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f);header.addView(title,lp);searchBox=new EditText(this);searchBox.setHint("Search");searchBox.setBackgroundColor(Color.WHITE);LinearLayout.LayoutParams sLp=new LinearLayout.LayoutParams(280,ViewGroup.LayoutParams.WRAP_CONTENT);header.addView(searchBox,sLp);root.addView(header);
+          breadcrumb=new TextView(this);breadcrumb.setPadding(15,8,15,4);breadcrumb.setTextSize(11);root.addView(breadcrumb);
+          LinearLayout bookRow=new LinearLayout(this);bookRow.setOrientation(LinearLayout.HORIZONTAL);bookRow.setPadding(10,2,10,2);bookRow.addView(new TextView(this){{setText("Book:");}});bookSpin=new Spinner(this);ArrayAdapter<String> ad=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,allBooks);ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);bookSpin.setAdapter(ad);bookRow.addView(bookSpin);root.addView(bookRow);
           HorizontalScrollView chScroll=new HorizontalScrollView(this);chapterContainer=new LinearLayout(this);chapterContainer.setOrientation(LinearLayout.HORIZONTAL);chScroll.addView(chapterContainer);root.addView(chScroll);
-          TextView vL=new TextView(this);vL.setText("Verse:");vL.setPadding(15,2,15,2);vL.setTextSize(10);root.addView(vL);
           HorizontalScrollView vScroll=new HorizontalScrollView(this);verseContainer=new LinearLayout(this);verseContainer.setOrientation(LinearLayout.HORIZONTAL);vScroll.addView(verseContainer);root.addView(vScroll);
-          webView=new WebView(this);webView.getSettings().setJavaScriptEnabled(true);webView.getSettings().setBuiltInZoomControls(true);LinearLayout.LayoutParams wlp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,0,1f);root.addView(webView,wlp);
-          LinearLayout audioBar=new LinearLayout(this);audioBar.setOrientation(LinearLayout.HORIZONTAL);audioBar.setPadding(8,5,8,5);audioBar.setBackgroundColor(0xFF1E3A8A);Button playBtn=new Button(this);playBtn.setText("Play");playBtn.setTextSize(9);Button pauseBtn=new Button(this);pauseBtn.setText("Pause");pauseBtn.setTextSize(9);Button stopBtn=new Button(this);stopBtn.setText("Stop");stopBtn.setTextSize(9);audioBar.addView(playBtn);audioBar.addView(pauseBtn);audioBar.addView(stopBtn);root.addView(audioBar);
-          LinearLayout tools=new LinearLayout(this);tools.setOrientation(LinearLayout.HORIZONTAL);tools.setPadding(5,5,5,5);tools.setBackgroundColor(0xFFE2E8F0);Button hlY=new Button(this);hlY.setText("Y");hlY.setTextSize(9);hlY.setBackgroundColor(0xFFFFFF00);Button hlG=new Button(this);hlG.setText("G");hlG.setTextSize(9);hlG.setBackgroundColor(0xFFA5D6A7);Button hlB=new Button(this);hlB.setText("B");hlB.setTextSize(9);hlB.setBackgroundColor(0xFF90CAF9);Button copyBtn=new Button(this);copyBtn.setText("Copy");copyBtn.setTextSize(9);Button shareBtn=new Button(this);shareBtn.setText("Share");shareBtn.setTextSize(9);Button dailyBtn=new Button(this);dailyBtn.setText("Daily");dailyBtn.setTextSize(9);Button planYBtn=new Button(this);planYBtn.setText("1Year");planYBtn.setTextSize(9);Button plan6Btn=new Button(this);plan6Btn.setText("6M");plan6Btn.setTextSize(9);tools.addView(hlY);tools.addView(hlG);tools.addView(hlB);tools.addView(copyBtn);tools.addView(shareBtn);tools.addView(dailyBtn);tools.addView(planYBtn);tools.addView(plan6Btn);HorizontalScrollView toolsHsv=new HorizontalScrollView(this);toolsHsv.addView(tools);root.addView(toolsHsv);
-          footnotesView=new TextView(this);footnotesView.setPadding(15,8,15,8);footnotesView.setTextSize(10);root.addView(footnotesView);setContentView(root);
-          playBtn.setOnClickListener(v->playAudio());pauseBtn.setOnClickListener(v->{if(tts!=null)tts.stop();});stopBtn.setOnClickListener(v->{if(tts!=null)tts.stop();});
-          hlY.setOnClickListener(v->doHighlight("yellow"));hlG.setOnClickListener(v->doHighlight("lightgreen"));hlB.setOnClickListener(v->doHighlight("lightblue"));
-          copyBtn.setOnClickListener(v->{webView.evaluateJavascript("(function(){return window.getSelection().toString();})();",val->{android.content.ClipboardManager cm=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE);cm.setPrimaryClip(android.content.ClipData.newPlainText("EW",val));Toast.makeText(this,"Copied",Toast.LENGTH_SHORT).show();});});
-          shareBtn.setOnClickListener(v->{webView.evaluateJavascript("(function(){return document.body.innerText.substring(0,1200);})();",val->{Intent i=new Intent(Intent.ACTION_SEND);i.setType("text/plain");i.putExtra(Intent.EXTRA_TEXT,val+" - "+currentBook+" "+currentChapter);startActivity(Intent.createChooser(i,"Share"));});});
-          dailyBtn.setOnClickListener(v->showDailyVerse());planYBtn.setOnClickListener(v->showPlan(true));plan6Btn.setOnClickListener(v->showPlan(false));
-          bookSpin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){currentBook=allBooks.get(pos);buildChapters();showCommentary(currentBook,1,1);}public void onNothingSelected(AdapterView<?> p){}});
-          scopeSpin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){currentScope=new String[]{"All Bible","OT Only","NT Only","This Book"}[pos];}public void onNothingSelected(AdapterView<?> p){}});
+          webView=new WebView(this);webView.getSettings().setJavaScriptEnabled(true);LinearLayout.LayoutParams wlp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,0,1f);root.addView(webView,wlp);
+          LinearLayout tools=new LinearLayout(this);tools.setOrientation(LinearLayout.HORIZONTAL);Button playBtn=new Button(this);playBtn.setText("Play");tools.addView(playBtn);Button copyBtn=new Button(this);copyBtn.setText("Copy");tools.addView(copyBtn);Button shareBtn=new Button(this);shareBtn.setText("Share");tools.addView(shareBtn);root.addView(tools);
+          setContentView(root);
+          playBtn.setOnClickListener(v->{if(ttsReady) tts.speak(webView.getContentDescription()!=null?webView.getContentDescription().toString():"Enduring Word",TextToSpeech.QUEUE_FLUSH,null,"ew");});
+          bookSpin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){showCommentary(allBooks.get(pos),1,1);buildChapters(pos);}public void onNothingSelected(AdapterView<?> p){}});
           searchBox.setOnEditorActionListener((tv,aid,ev)->{doSearch(searchBox.getText().toString());return true;});
-          loadDB();buildChapters();buildVerses();String lb=prefs.getString("last_book","Genesis");int lc=prefs.getInt("last_ch",1);int idx=allBooks.indexOf(lb);if(idx>=0)bookSpin.setSelection(idx);showCommentary(lb,lc,1);createChannel();}
-          public void onInit(int s){ttsReady=(s==TextToSpeech.SUCCESS);if(ttsReady)tts.setLanguage(Locale.US);}
-          void playAudio(){if(!ttsReady||currentPlain.length()<5)return;tts.stop();String t=currentPlain.replaceAll("<[^>]+>"," ").trim();if(t.length()>3900)t=t.substring(0,3900);tts.speak(t,TextToSpeech.QUEUE_FLUSH,null,"ew");}
-          void doHighlight(String c){webView.evaluateJavascript("javascript:(function(){var sel=window.getSelection();if(sel.rangeCount>0){var r=sel.getRangeAt(0);var sp=document.createElement('span');sp.style.background='"+c+"';sp.appendChild(r.extractContents());r.insertNode(sp);}})()",null);}
-          void buildChapters(){chapterContainer.removeAllViews();int max=50;if(currentBook.equals("Psalm"))max=150;else if(currentBook.equals("Revelation"))max=22;for(int i=1;i<=max;i++){Button cb=new Button(this);cb.setText(String.valueOf(i));cb.setTextSize(10);cb.setOnClickListener(v->{int ch=Integer.parseInt(((Button)v).getText().toString());currentChapter=ch;showCommentary(currentBook,ch,1);});chapterContainer.addView(cb);}}
-          void buildVerses(){verseContainer.removeAllViews();for(int i=1;i<=40;i++){Button vb=new Button(this);vb.setText(String.valueOf(i));vb.setTextSize(9);vb.setOnClickListener(v->{int vs=Integer.parseInt(((Button)v).getText().toString());currentVerse=vs;showCommentary(currentBook,currentChapter,vs);});verseContainer.addView(vb);}}
-          void loadDB(){try{File out=new File(getFilesDir(),"enduring_word_structured.sqlite3");if(!out.exists()||out.length()<1000){String[] nms={"enduring_word_structured.sqlite3","bible.db"};for(String nm:nms){try{InputStream is=getAssets().open(nm);FileOutputStream fos=new FileOutputStream(out);byte[] buf=new byte[8192];int l;while((l=is.read(buf))>0)fos.write(buf,0,l);fos.close();is.close();break;}catch(Exception e){}}}db=SQLiteDatabase.openDatabase(out.getPath(),null,SQLiteDatabase.OPEN_READONLY);}catch(Exception e){}}
-          void showCommentary(String book,int chapter,int verse){currentBook=book;currentChapter=chapter;currentVerse=verse;prefs.edit().putString("last_book",book).putInt("last_ch",chapter).apply();breadcrumb.setText(book+" "+chapter+":"+verse+" | Full Bible");try{String content="";Cursor tbls=db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'",null);while(tbls.moveToNext()){String t=tbls.getString(0);if(t.contains("android")||t.contains("sqlite"))continue;try{Cursor data=db.rawQuery("SELECT * FROM "+t+" WHERE book LIKE '%"+book+"%' AND chapter="+chapter+" LIMIT 1",null);if(data.moveToFirst()){StringBuilder sb=new StringBuilder();for(int i=0;i<data.getColumnCount();i++){String val=data.getString(i);if(val!=null&&val.length()>30)sb.append(val).append("<br>");}content=sb.toString();if(content.length()>100){data.close();break;}}data.close();}catch(Exception ex){}}tbls.close();if(content.length()<20)content="<p>Commentary "+book+" "+chapter+":"+verse+"</p>";currentPlain=content;webView.loadDataWithBaseURL(null,"<html><head><style>body{font-family:Georgia;font-size:17px;padding:15px;}</style></head><body>"+content+"</body></html>","text/html","UTF-8",null);}catch(Exception e){webView.loadData(null,"<h3>"+e.toString()+"</h3>","text/html");}}
-          void doSearch(String q){if(q.length()<2)return;try{Cursor tbls=db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'",null);while(tbls.moveToNext()){String t=tbls.getString(0);if(t.contains("android"))continue;try{Cursor data=db.rawQuery("SELECT * FROM "+t+" WHERE content LIKE '%"+q+"%' LIMIT 1",null);if(data.moveToFirst()){StringBuilder sb=new StringBuilder();for(int i=0;i<data.getColumnCount();i++){String val=data.getString(i);if(val!=null&&val.length()>50)sb.append(val);}webView.loadDataWithBaseURL(null,"<html><body><h2>Search: "+q+"</h2>"+sb.toString().substring(0,Math.min(15000,sb.length()))+"</body></html>","text/html","UTF-8",null);data.close();break;}data.close();}catch(Exception ex){}}tbls.close();}catch(Exception e){}}
-          void showDailyVerse(){webView.loadData(null,"<html><body style='padding:20px;text-align:center;'><h2>Daily Verse</h2><h3>John 3:16 - For God so loved the world...</h3></body></html>","text/html");scheduleDaily();}
-          void showPlan(boolean yearly){int days=yearly?365:180;StringBuilder html=new StringBuilder("<html><body><h2>"+(yearly?"1 Year":"6M")+" Plan Genesis-Revelation</h2>");for(int i=1;i<=10;i++)html.append("<p>Day "+i+": "+allBooks.get(i%allBooks.size())+"</p>");html.append("</body></html>");webView.loadData(null,html.toString(),"text/html");}
-          void createChannel(){try{NotificationChannel ch=new NotificationChannel("daily","Daily Verse",NotificationManager.IMPORTANCE_DEFAULT);getSystemService(NotificationManager.class).createNotificationChannel(ch);}catch(Exception e){}}
-          void scheduleDaily(){try{NotificationManager nm=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);android.app.Notification notif=new android.app.Notification.Builder(this,"daily").setContentTitle("Enduring Word").setContentText("Daily Verse - John 3:16").setSmallIcon(android.R.drawable.ic_menu_compass).build();nm.notify(1,notif);}catch(Exception e){}}
+          loadDB();buildChapters(0);buildVerses();showCommentary("Genesis",1,1);}
+          public void onInit(int s){ttsReady=(s==TextToSpeech.SUCCESS);}
+          void buildChapters(int bookIdx){chapterContainer.removeAllViews();int max=50;String b=allBooks.get(bookIdx);if(b.equals("Psalm"))max=150;else if(b.equals("Revelation"))max=22;for(int i=1;i<=max;i++){Button cb=new Button(this);cb.setText(String.valueOf(i));cb.setOnClickListener(v->{int ch=Integer.parseInt(((Button)v).getText().toString());showCommentary(allBooks.get(bookSpin.getSelectedItemPosition()),ch,1);});chapterContainer.addView(cb);}}
+          void buildVerses(){verseContainer.removeAllViews();for(int i=1;i<=40;i++){Button vb=new Button(this);vb.setText(String.valueOf(i));vb.setOnClickListener(v->{int vs=Integer.parseInt(((Button)v).getText().toString());showCommentary(allBooks.get(bookSpin.getSelectedItemPosition()),1,vs);});verseContainer.addView(vb);}}
+          void loadDB(){try{File out=new File(getFilesDir(),"ew.db");if(!out.exists()){for(String nm:new String[]{"enduring_word_structured.sqlite3","bible.db"}){try{InputStream is=getAssets().open(nm);FileOutputStream fos=new FileOutputStream(out);byte[] buf=new byte[8192];int l;while((l=is.read(buf))>0)fos.write(buf,0,l);fos.close();is.close();break;}catch(Exception e){}}}db=SQLiteDatabase.openDatabase(out.getPath(),null,SQLiteDatabase.OPEN_READONLY);}catch(Exception e){}}
+          void showCommentary(String book,int chapter,int verse){breadcrumb.setText(book+" "+chapter+":"+verse+" | Genesis to Revelation FULL");try{String content="";Cursor tbls=db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'",null);while(tbls.moveToNext()){String t=tbls.getString(0);if(t.contains("android"))continue;try{Cursor data=db.rawQuery("SELECT * FROM "+t+" WHERE book LIKE '%"+book+"%' AND chapter="+chapter+" LIMIT 1",null);if(data.moveToFirst()){StringBuilder sb=new StringBuilder();for(int i=0;i<data.getColumnCount();i++){String val=data.getString(i);if(val!=null&&val.length()>30)sb.append(val).append("<br>");}content=sb.toString();if(content.length()>100){data.close();break;}}data.close();}catch(Exception ex){}}tbls.close();if(content.length()<20)content="<p>Full Commentary "+book+" "+chapter+"</p>";webView.loadDataWithBaseURL(null,"<html><body style='font-family:Georgia;padding:15px;font-size:17px;'>"+content+"</body></html>","text/html","UTF-8",null);}catch(Exception e){webView.loadData(null,"<h3>"+e.toString()+"</h3>","text/html");}}
+          void doSearch(String q){try{Cursor tbls=db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'",null);while(tbls.moveToNext()){String t=tbls.getString(0);if(t.contains("android"))continue;try{Cursor data=db.rawQuery("SELECT * FROM "+t+" WHERE content LIKE '%"+q+"%' LIMIT 1",null);if(data.moveToFirst()){StringBuilder sb=new StringBuilder();for(int i=0;i<data.getColumnCount();i++){String val=data.getString(i);if(val!=null&&val.length()>50)sb.append(val);}webView.loadDataWithBaseURL(null,"<html><body><h2>Search: "+q+"</h2>"+sb.toString().substring(0,Math.min(15000,sb.length()))+"</body></html>","text/html","UTF-8",null);data.close();break;}data.close();}catch(Exception ex){}}tbls.close();}catch(Exception e){}}
           }
           JAVA
       - name: Build APK
@@ -83,5 +84,5 @@ jobs:
           arguments: assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-FULL-BIBLE
+          name: EnduringWord-FULL
           path: app/build/outputs/apk/debug/*.apk
