@@ -5,20 +5,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: Download 70MB DB
         run: |
           wget -O enduring_word_full.db "https://github.com/comfort-geek/New-Bible-Growth/releases/download/V1.2/enduring_word_full.db"
           ls -lh enduring_word_full.db
-          if [ $(stat -c%s enduring_word_full.db) -lt 10000000 ]; then echo "Download failed"; exit 1; fi
+          if [ $(stat -c%s enduring_word_full.db) -lt 10000000 ]; then echo "DB download failed"; exit 1; fi
+
       - uses: actions/setup-python@v5
-        with: {python-version: '3.10'}
+        with:
+          python-version: '3.10'
+
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y openjdk-17-jdk zip unzip autoconf libtool pkg-config zlib1g-dev libffi-dev libssl-dev cmake
+          sudo apt install -y openjdk-17-jdk zip unzip autoconf libtool pkg-config zlib1g-dev libffi-dev libssl-dev cmake libncurses5-dev
+
+      - name: Accept Android Licenses
+        run: |
+          mkdir -p $HOME/.buildozer/android/platform/android-sdk/licenses
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "24333f8a63b6825ea9c5514f83c1059b8ea4b68" >> $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          yes | sdkmanager --licenses || true
+
       - name: Build APK
         run: |
           pip install buildozer cython==0.29.33
           buildozer android debug
+
       - uses: actions/upload-artifact@v4
-        with: {name: enduring-word-apk, path: bin/*.apk}
+        with:
+          name: enduring-word-apk
+          path: bin/*.apk
