@@ -3,12 +3,10 @@ on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-22.04
-    env:
-      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Download 70MB DB
+
+      - name: Download DB
         run: |
           wget -O enduring_word_full.db "https://github.com/comfort-geek/New-Bible-Growth/releases/download/V1.2/enduring_word_full.db"
           ls -lh enduring_word_full.db
@@ -17,27 +15,41 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Install system deps
         run: |
           sudo apt update
-          sudo apt install -y openjdk-17-jdk zip unzip autoconf libtool pkg-config zlib1g-dev libffi-dev libssl-dev cmake
+          sudo apt install -y openjdk-17-jdk zip unzip autoconf libtool pkg-config zlib1g-dev libffi-dev libssl-dev cmake libtinfo6
+          echo "JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64" >> $GITHUB_ENV
 
-      - name: Patch Buildozer SDK path bug
+      - name: Install Buildozer Master
         run: |
           pip install cython==0.29.33
           pip install https://github.com/kivy/buildozer/archive/master.zip
           pip install https://github.com/kivy/python-for-android/archive/master.zip
-          PYFILE=$(python -c "import buildozer.targets.android; print(buildozer.targets.android.__file__)")
-          echo "Patching $PYFILE"
-          sed -i 's|tools/bin/sdkmanager|cmdline-tools/latest/bin/sdkmanager|g' "$PYFILE"
-          sed -i 's|tools/bin/avdmanager|cmdline-tools/latest/bin/avdmanager|g' "$PYFILE"
-          echo "Patched OK"
+
+      - name: Fix sdkmanager - create missing file
+        run: |
+          SDK=$HOME/.buildozer/android/platform/android-sdk
+          mkdir -p $SDK
+          cd /tmp
+          rm -rf cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q commandlinetools-linux-11076708_latest.zip
+          mkdir -p $SDK/cmdline-tools/latest
+          cp -a cmdline-tools/. $SDK/cmdline-tools/latest/
+          chmod +x $SDK/cmdline-tools/latest/bin/*
+          mkdir -p $SDK/tools/bin
+          ln -sf $SDK/cmdline-tools/latest/bin/sdkmanager $SDK/tools/bin/sdkmanager
+          ln -sf $SDK/cmdline-tools/latest/bin/avdmanager $SDK/tools/bin/avdmanager
+          ls -lh $SDK/tools/bin/sdkmanager
+          $SDK/tools/bin/sdkmanager --version
+          mkdir -p $SDK/licenses
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $SDK/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $SDK/licenses/android-sdk-license
+          echo "252772963f4c6e6da9da7c3f5dcc7b4d8b0d1a7d" >> $SDK/licenses/android-sdk-license
 
       - name: Build APK
         run: |
-          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
           buildozer android debug
 
       - uses: actions/upload-artifact@v4
