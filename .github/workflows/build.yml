@@ -12,7 +12,7 @@ jobs:
 
       - name: Fix All Files
         run: |
-          rm -rf build.gradle app/build.gradle settings.gradle gradle.properties
+          rm -rf build.gradle app/build.gradle settings.gradle gradle.properties app/src/main/java
 
           cat > settings.gradle <<'END'
           pluginManagement {
