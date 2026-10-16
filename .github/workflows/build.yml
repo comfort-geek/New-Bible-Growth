@@ -9,403 +9,89 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Build with Auto-Correct
+
+      - name: Create project files
         run: |
-          set -e
-          echo "=== ASSETS ==="
-          ls -lh app/src/main/assets/ || echo "no assets folder"
-          if [ -f app/src/main/assets/bible.db ]; then echo "Found bible.db OK"; else echo "ERROR: bible.db not found at app/src/main/assets/bible.db"; fi
-
-          rm -rf app/build.gradle settings.gradle build.gradle gradle.properties local.properties
-          mkdir -p app/src/main/java/com/enduringword/app app/src/main/assets
-
-          cat > settings.gradle << 'EOF'
-          include ':app'
-          EOF
-
+          ls -lh app/src/main/assets/
+          rm -f settings.gradle build.gradle gradle.properties app/build.gradle
+          echo "include ':app'" > settings.gradle
           cat > build.gradle << 'EOF'
-          buildscript {
-              repositories { google(); mavenCentral() }
-              dependencies { classpath 'com.android.tools.build:gradle:8.1.4' }
-          }
+          buildscript { repositories { google(); mavenCentral() } dependencies { classpath 'com.android.tools.build:gradle:8.1.4' } }
           allprojects { repositories { google(); mavenCentral() } }
           EOF
-
-          cat > gradle.properties << 'EOF'
-          org.gradle.jvmargs=-Xmx2g
-          android.useAndroidX=true
-          EOF
-
-          cat > local.properties << 'EOF'
-          sdk.dir=/usr/local/lib/android/sdk
-          EOF
-
+          echo "org.gradle.jvmargs=-Xmx2g" > gradle.properties
+          echo "android.useAndroidX=true" >> gradle.properties
+          echo "sdk.dir=/usr/local/lib/android/sdk" > local.properties
           cat > app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
-          android {
-              namespace 'com.enduringword.app'
-              compileSdk 33
-              defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 310; versionName 'AutoFix' }
-              compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-          }
+          android { namespace 'com.enduringword.app'; compileSdk 33; defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 311; versionName 'FixArtifact' } compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }
           EOF
-
           cat > app/src/main/AndroidManifest.xml << 'EOF'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-          <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
-          <application android:label="Enduring Word" android:theme="@android:style/Theme.Material.Light">
-          <activity android:name=".MainActivity" android:exported="true">
-          <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
-          </activity>
-          </application>
-          </manifest>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.POST_NOTIFICATIONS"/><application android:label="Enduring Word" android:theme="@android:style/Theme.Material.Light"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>
           EOF
-
-          # === CLEAN MainActivity - NO getDatabasePath() - uses getFilesDir() only ===
+          mkdir -p app/src/main/java/com/enduringword/app
           cat > app/src/main/java/com/enduringword/app/MainActivity.java << 'JAVA'
           package com.enduringword.app;
-          import android.app.Activity;
-          import android.content.SharedPreferences;
-          import android.database.Cursor;
-          import android.database.sqlite.SQLiteDatabase;
-          import android.graphics.Color;
-          import android.os.Bundle;
-          import android.speech.tts.TextToSpeech;
-          import android.webkit.WebView;
-          import android.widget.*;
-          import java.io.File;
-          import java.io.FileOutputStream;
-          import java.io.InputStream;
-          import java.util.*;
-
+          import android.app.Activity; import android.content.SharedPreferences; import android.database.Cursor; import android.database.sqlite.SQLiteDatabase; import android.graphics.Color; import android.os.Bundle; import android.speech.tts.TextToSpeech; import android.webkit.WebView; import android.widget.*; import java.io.File; import java.io.FileOutputStream; import java.io.InputStream; import java.util.*;
           public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
-              SQLiteDatabase db;
-              WebView webView;
-              SharedPreferences prefs;
-              TextToSpeech tts;
-              boolean ttsReady = false;
-              Spinner bookSpin, scopeSpin;
-              LinearLayout chapterBox, verseBox;
-              EditText searchBox;
-              TextView smallStatus;
-              List<String> allBooks = Arrays.asList(
-                  "Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth",
-                  "1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther",
-                  "Job","Psalm","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel",
-                  "Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi",
-                  "Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians",
-                  "Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon",
-                  "Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation"
-              );
-              String currentBook = "Genesis";
-              int currentChapter = 1;
-              int currentVerse = 1;
-              String currentPlain = "";
+          SQLiteDatabase db; WebView webView; SharedPreferences prefs; TextToSpeech tts; boolean ttsReady=false; Spinner bookSpin, scopeSpin; LinearLayout chapterBox, verseBox; EditText searchBox; TextView smallStatus;
+          List<String> allBooks = Arrays.asList("Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalm","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi","Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation");
+          String currentBook="Genesis"; int currentChapter=1; int currentVerse=1; String currentPlain="";
+          protected void onCreate(Bundle b){ super.onCreate(b); prefs=getSharedPreferences("ew_fix",0); tts=new TextToSpeech(this,this);
+          LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(0xFFFFFFFF);
+          LinearLayout topRow=new LinearLayout(this); topRow.setOrientation(LinearLayout.HORIZONTAL); topRow.setPadding(10,12,10,8);
+          searchBox=new EditText(this); searchBox.setHint("Search..."); searchBox.setTextSize(12); searchBox.setBackgroundColor(0xFFF1F5F9); searchBox.setPadding(12,8,12,8);
+          LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1f); topRow.addView(searchBox,lp);
+          scopeSpin=new Spinner(this); ArrayAdapter<String> ad=new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"All","OT","NT","Book"}); scopeSpin.setAdapter(ad); topRow.addView(scopeSpin); root.addView(topRow);
+          smallStatus=new TextView(this); smallStatus.setPadding(12,2,12,4); smallStatus.setTextSize(10); smallStatus.setTextColor(0xFF94A3B8); root.addView(smallStatus);
+          bookSpin=new Spinner(this); ArrayAdapter<String> bad=new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, allBooks); bookSpin.setAdapter(bad); root.addView(bookSpin);
+          TextView cl=new TextView(this); cl.setText("Chapter"); cl.setPadding(12,6,12,2); cl.setTextSize(10); cl.setTextColor(0xFF94A3B8); root.addView(cl);
+          HorizontalScrollView chs=new HorizontalScrollView(this); chapterBox=new LinearLayout(this); chapterBox.setOrientation(LinearLayout.HORIZONTAL); chapterBox.setPadding(8,0,8,6); chs.addView(chapterBox); root.addView(chs);
+          TextView vl=new TextView(this); vl.setText("Verse"); vl.setPadding(12,4,12,2); vl.setTextSize(10); vl.setTextColor(0xFF94A3B8); root.addView(vl);
+          HorizontalScrollView vs=new HorizontalScrollView(this); verseBox=new LinearLayout(this); verseBox.setOrientation(LinearLayout.HORIZONTAL); verseBox.setPadding(8,0,8,8); vs.addView(verseBox); root.addView(vs);
+          webView=new WebView(this); webView.getSettings().setJavaScriptEnabled(true); webView.getSettings().setBuiltInZoomControls(true); webView.getSettings().setDisplayZoomControls(false);
+          LinearLayout.LayoutParams wlp=new LinearLayout.LayoutParams(-1,0,1f); root.addView(webView,wlp);
+          LinearLayout bot=new LinearLayout(this); bot.setOrientation(LinearLayout.HORIZONTAL); bot.setPadding(5,5,5,5); bot.setBackgroundColor(0xFFF8FAFC);
+          Button play=new Button(this); play.setText("Play"); play.setTextSize(9); Button hl=new Button(this); hl.setText("Highlight"); hl.setTextSize(9); Button cp=new Button(this); cp.setText("Copy"); cp.setTextSize(9); Button sh=new Button(this); sh.setText("Share"); sh.setTextSize(9); Button dy=new Button(this); dy.setText("Daily"); dy.setTextSize(9); Button pl=new Button(this); pl.setText("Plan"); pl.setTextSize(9);
+          bot.addView(play); bot.addView(hl); bot.addView(cp); bot.addView(sh); bot.addView(dy); bot.addView(pl);
+          HorizontalScrollView bs=new HorizontalScrollView(this); bs.addView(bot); root.addView(bs);
+          setContentView(root);
+          play.setOnClickListener(v->playAudio()); hl.setOnClickListener(v->doHighlight()); cp.setOnClickListener(v->doCopy()); sh.setOnClickListener(v->doShare()); dy.setOnClickListener(v->showDaily()); pl.setOnClickListener(v->showPlan());
+          bookSpin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){ public void onItemSelected(AdapterView<?> p, View v, int pos, long id){ currentBook=allBooks.get(pos); buildChapters(); show(currentBook,1,1);} public void onNothingSelected(AdapterView<?> p){} });
+          searchBox.setOnEditorActionListener((tv,aid,ev)->{ doSearch(searchBox.getText().toString()); return true; });
+          loadDB(); buildChapters(); buildVerses();
+          String lb=prefs.getString("last_book","Genesis"); int lc=prefs.getInt("last_ch",1); int idx=allBooks.indexOf(lb); if(idx>=0) bookSpin.setSelection(idx); show(lb,lc,1);
+          }
+          public void onInit(int s){ ttsReady=(s==TextToSpeech.SUCCESS); if(ttsReady) tts.setLanguage(Locale.US); }
+          void playAudio(){ if(!ttsReady||currentPlain.length()<5) return; tts.stop(); String t=currentPlain.replaceAll("<[^>]+>"," ").replaceAll("\\s+"," ").trim(); if(t.length()>3900) t=t.substring(0,3900); tts.speak(t,TextToSpeech.QUEUE_FLUSH,null,"ew"); Toast.makeText(this,"Playing "+currentBook+" "+currentChapter,Toast.LENGTH_SHORT).show(); }
+          void doHighlight(){ webView.evaluateJavascript("javascript:(function(){var sel=window.getSelection(); if(sel.rangeCount>0){ var r=sel.getRangeAt(0); var sp=document.createElement('span'); sp.style.background='yellow'; sp.appendChild(r.extractContents()); r.insertNode(sp);} })()",null); }
+          void doCopy(){ webView.evaluateJavascript("(function(){return window.getSelection().toString();})();", val->{ android.content.ClipboardManager cm=(android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE); cm.setPrimaryClip(android.content.ClipData.newPlainText("EW", val)); Toast.makeText(this,"Copied",Toast.LENGTH_SHORT).show(); }); }
+          void doShare(){ webView.evaluateJavascript("(function(){return document.body.innerText.substring(0,1000);})();", val->{ android.content.Intent i=new android.content.Intent(android.content.Intent.ACTION_SEND); i.setType("text/plain"); i.putExtra(android.content.Intent.EXTRA_TEXT, val); startActivity(Intent.createChooser(i,"Share")); }); }
+          void showDaily(){ webView.loadData(null,"<html><body style='font-family:sans-serif; padding:20px;'><h3>Daily Verse</h3><p>John 3:16</p></body></html>","text/html"); }
+          void showPlan(){ webView.loadData(null,"<html><body style='font-family:sans-serif; padding:20px;'><h3>Reading Plan</h3><p>1 Year, 6 Months</p></body></html>","text/html"); }
+          void buildChapters(){ chapterBox.removeAllViews(); int max=getMax(currentBook); for(int i=1;i<=max;i++){ Button b=new Button(this); b.setText(String.valueOf(i)); b.setTextSize(10); LinearLayout.LayoutParams l=new LinearLayout.LayoutParams(-2,-2); l.setMargins(2,0,2,0); b.setLayoutParams(l); if(i==currentChapter){ b.setBackgroundColor(0xFF1E3A8A); b.setTextColor(Color.WHITE);} final int ch=i; b.setOnClickListener(v->{ currentChapter=ch; buildChapters(); buildVerses(); show(currentBook,ch,1);}); chapterBox.addView(b);} }
+          void buildVerses(){ verseBox.removeAllViews(); for(int i=1;i<=30;i++){ Button b=new Button(this); b.setText(String.valueOf(i)); b.setTextSize(9); LinearLayout.LayoutParams l=new LinearLayout.LayoutParams(-2,-2); l.setMargins(2,0,2,0); b.setLayoutParams(l); if(i==currentVerse){ b.setBackgroundColor(0xFF3B82F6); b.setTextColor(Color.WHITE);} final int vs=i; b.setOnClickListener(v->{ currentVerse=vs; buildVerses(); show(currentBook,currentChapter,vs);}); verseBox.addView(b);} }
+          int getMax(String s){ Map<String,Integer> m=new HashMap<>(); m.put("Genesis",50); m.put("Exodus",40); m.put("Psalm",150); m.put("Matthew",28); m.put("John",21); m.put("Revelation",22); return m.getOrDefault(s,30); }
+          void loadDB(){ try{ File out=new File(getFilesDir(),"bible.db"); if(!out.exists()||out.length()<1000){ InputStream is=getAssets().open("bible.db"); FileOutputStream fos=new FileOutputStream(out); byte[] buf=new byte[8192]; int l; while((l=is.read(buf))>0) fos.write(buf,0,l); fos.close(); is.close(); } db=SQLiteDatabase.openDatabase(out.getPath(),null,SQLiteDatabase.OPEN_READONLY); }catch(Exception e){} }
+          void show(String book,int chapter,int verse){ currentChapter=chapter; currentVerse=verse; currentBook=book; prefs.edit().putString("last_book",book).putInt("last_ch",chapter).apply(); smallStatus.setText(book+" "+chapter+":"+verse+" - Complete - Auto saved"); try{ String content=""; Cursor tbls=db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'",null); while(tbls.moveToNext()){ String t=tbls.getString(0); if(t.contains("android")||t.contains("sqlite")) continue; try{ Cursor data=db.rawQuery("SELECT * FROM "+t+" WHERE book LIKE '%"+book+"%' AND chapter="+chapter+" LIMIT 1",null); if(data.moveToFirst()){ StringBuilder sb=new StringBuilder(); for(int i=0;i<data.getColumnCount();i++){ String v=data.getString(i); if(v!=null&&v.length()>100) sb.append(v).append("<br><br>"); } content=sb.toString(); if(content.length()>100){ data.close(); break; } } data.close(); }catch(Exception ex){} } tbls.close(); if(content.length()<100){ Cursor v=db.rawQuery("SELECT * FROM commentaries LIMIT 1",null); if(v.moveToFirst()){ StringBuilder sb=new StringBuilder(); for(int i=0;i<v.getColumnCount();i++){ String val=v.getString(i); if(val!=null&&val.length()>100) sb.append(val);} String full=sb.toString(); String low=full.toLowerCase(); int st=low.indexOf(book.toLowerCase()+" "+chapter+":"); if(st<0) st=low.indexOf(book.toLowerCase()+" "+chapter); if(st>=0){ int en=full.length(); int nx=low.indexOf(book.toLowerCase()+" "+(chapter+1)+":", st+200); if(nx>st) en=nx; content=full.substring(st, Math.min(en, st+70000)); int lp=content.lastIndexOf("</p>"); if(lp>content.length()-600&&lp>0) content=content.substring(0,lp+4); } else content=full.substring(0,50000); } v.close(); } if(content.length()<20) content="<p>"+book+" "+chapter+":"+verse+" commentary</p>"; currentPlain=content; String html="<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Georgia, serif; font-size:17px; line-height:1.9; padding:16px; color:#1e293b;} p{margin:14px 0;}</style></head><body>"+content+"</body></html>"; webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null); }catch(Exception e){ webView.loadData(null,"<p>Error: "+e.toString()+"</p>","text/html"); } }
+          void doSearch(String q){ if(q.length()<2) return; try{ Cursor v=db.rawQuery("SELECT * FROM commentaries LIMIT 1",null); if(v.moveToFirst()){ StringBuilder sb=new StringBuilder(); for(int i=0;i<v.getColumnCount();i++){ String val=v.getString(i); if(val!=null&&val.length()>100) sb.append(val);} String full=sb.toString(); int idx=full.toLowerCase().indexOf(q.toLowerCase()); if(idx>=0){ int st=Math.max(0,idx-300); int en=Math.min(full.length(), idx+12000); String sn=full.substring(st,en); int lp=sn.lastIndexOf("</p>"); if(lp>0) sn=sn.substring(0,lp+4); webView.loadDataWithBaseURL(null, "<html><body style='padding:15px;'><h3>Search: "+q+"</h3>"+sn+"</body></html>", "text/html","UTF-8",null);} } v.close(); }catch(Exception e){} }
+          }
+          JAVA
 
-              protected void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-                  prefs = getSharedPreferences("ew_autofix", 0);
-                  tts = new TextToSpeech(this, this);
+      - name: Build APK real
+        run: |
+         ./gradlew assembleDebug --no-daemon --stacktrace
+          echo "=== BUILD OUTPUTS ==="
+          find app/build -type f -name "*.apk" | head -20
+          ls -lh app/build/outputs/apk/debug/ || ls -lh app/build/outputs/ || echo "no apk folder"
 
-                  LinearLayout root = new LinearLayout(this);
-                  root.setOrientation(LinearLayout.VERTICAL);
-                  root.setBackgroundColor(0xFFFFFFFF);
-
-                  LinearLayout topRow = new LinearLayout(this);
-                  topRow.setOrientation(LinearLayout.HORIZONTAL);
-                  topRow.setPadding(10, 12, 10, 8);
-                  searchBox = new EditText(this);
-                  searchBox.setHint("Search...");
-                  searchBox.setTextSize(12);
-                  searchBox.setBackgroundColor(0xFFF1F5F9);
-                  searchBox.setPadding(12, 8, 12, 8);
-                  LinearLayout.LayoutParams lpSearch = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-                  topRow.addView(searchBox, lpSearch);
-                  scopeSpin = new Spinner(this);
-                  ArrayAdapter<String> scopeAd = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"All","OT","NT","Book"});
-                  scopeSpin.setAdapter(scopeAd);
-                  topRow.addView(scopeSpin);
-                  root.addView(topRow);
-
-                  smallStatus = new TextView(this);
-                  smallStatus.setPadding(12, 2, 12, 4);
-                  smallStatus.setTextSize(10);
-                  smallStatus.setTextColor(0xFF94A3B8);
-                  root.addView(smallStatus);
-
-                  bookSpin = new Spinner(this);
-                  ArrayAdapter<String> bookAd = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, allBooks);
-                  bookSpin.setAdapter(bookAd);
-                  root.addView(bookSpin);
-
-                  TextView chLabel = new TextView(this);
-                  chLabel.setText("Chapter");
-                  chLabel.setPadding(12, 6, 12, 2);
-                  chLabel.setTextSize(10);
-                  chLabel.setTextColor(0xFF94A3B8);
-                  root.addView(chLabel);
-
-                  HorizontalScrollView chScroll = new HorizontalScrollView(this);
-                  chapterBox = new LinearLayout(this);
-                  chapterBox.setOrientation(LinearLayout.HORIZONTAL);
-                  chapterBox.setPadding(8, 0, 8, 6);
-                  chScroll.addView(chapterBox);
-                  root.addView(chScroll);
-
-                  TextView vLabel = new TextView(this);
-                  vLabel.setText("Verse");
-                  vLabel.setPadding(12, 4, 12, 2);
-                  vLabel.setTextSize(10);
-                  vLabel.setTextColor(0xFF94A3B8);
-                  root.addView(vLabel);
-
-                  HorizontalScrollView vScroll = new HorizontalScrollView(this);
-                  verseBox = new LinearLayout(this);
-                  verseBox.setOrientation(LinearLayout.HORIZONTAL);
-                  verseBox.setPadding(8, 0, 8, 8);
-                  vScroll.addView(verseBox);
-                  root.addView(vScroll);
-
-                  webView = new WebView(this);
-                  webView.getSettings().setJavaScriptEnabled(true);
-                  webView.getSettings().setBuiltInZoomControls(true);
-                  webView.getSettings().setDisplayZoomControls(false);
-                  LinearLayout.LayoutParams wlp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-                  root.addView(webView, wlp);
-
-                  LinearLayout bottom = new LinearLayout(this);
-                  bottom.setOrientation(LinearLayout.HORIZONTAL);
-                  bottom.setPadding(5, 5, 5, 5);
-                  bottom.setBackgroundColor(0xFFF8FAFC);
-                  Button play = new Button(this); play.setText("Play"); play.setTextSize(9);
-                  Button hl = new Button(this); hl.setText("Highlight"); hl.setTextSize(9);
-                  Button copy = new Button(this); copy.setText("Copy"); copy.setTextSize(9);
-                  Button share = new Button(this); share.setText("Share"); share.setTextSize(9);
-                  Button daily = new Button(this); daily.setText("Daily"); daily.setTextSize(9);
-                  Button plan = new Button(this); plan.setText("Plan"); plan.setTextSize(9);
-                  bottom.addView(play); bottom.addView(hl); bottom.addView(copy); bottom.addView(share); bottom.addView(daily); bottom.addView(plan);
-                  HorizontalScrollView bScroll = new HorizontalScrollView(this);
-                  bScroll.addView(bottom);
-                  root.addView(bScroll);
-
-                  setContentView(root);
-
-                  play.setOnClickListener(v -> playAudio());
-                  hl.setOnClickListener(v -> doHighlight());
-                  copy.setOnClickListener(v -> doCopy());
-                  share.setOnClickListener(v -> doShare());
-                  daily.setOnClickListener(v -> showDaily());
-                  plan.setOnClickListener(v -> showPlan());
-
-                  bookSpin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                      public void onItemSelected(AdapterView<?> p, View v, int pos, long id) {
-                          currentBook = allBooks.get(pos);
-                          buildChapters();
-                          show(currentBook, 1, 1);
-                      }
-                      public void onNothingSelected(AdapterView<?> p) {}
-                  });
-
-                  searchBox.setOnEditorActionListener((tv, aid, ev) -> {
-                      doSearch(searchBox.getText().toString());
-                      return true;
-                  });
-
-                  loadDB();
-                  buildChapters();
-                  buildVerses();
-                  String lb = prefs.getString("last_book", "Genesis");
-                  int lc = prefs.getInt("last_ch", 1);
-                  int idx = allBooks.indexOf(lb);
-                  if (idx >= 0) bookSpin.setSelection(idx);
-                  show(lb, lc, 1);
-              }
-
-              public void onInit(int s) {
-                  ttsReady = (s == TextToSpeech.SUCCESS);
-                  if (ttsReady) tts.setLanguage(Locale.US);
-              }
-
-              void playAudio() {
-                  if (!ttsReady || currentPlain.length() < 5) return;
-                  tts.stop();
-                  String t = currentPlain.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").trim();
-                  if (t.length() > 3900) t = t.substring(0, 3900);
-                  tts.speak(t, TextToSpeech.QUEUE_FLUSH, null, "ew");
-                  Toast.makeText(this, "Playing " + currentBook + " " + currentChapter, Toast.LENGTH_SHORT).show();
-              }
-
-              void doHighlight() {
-                  webView.evaluateJavascript("javascript:(function(){var sel=window.getSelection(); if(sel.rangeCount>0){ var r=sel.getRangeAt(0); var sp=document.createElement('span'); sp.style.background='yellow'; sp.appendChild(r.extractContents()); r.insertNode(sp);} })()", null);
-                  Toast.makeText(this, "Highlighted - auto saved", Toast.LENGTH_SHORT).show();
-              }
-
-              void doCopy() {
-                  webView.evaluateJavascript("(function(){return window.getSelection().toString();})();", val -> {
-                      android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                      cm.setPrimaryClip(android.content.ClipData.newPlainText("EW", val));
-                      Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show();
-                  });
-              }
-
-              void doShare() {
-                  webView.evaluateJavascript("(function(){return document.body.innerText.substring(0,1000);})();", val -> {
-                      android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_SEND);
-                      i.setType("text/plain");
-                      i.putExtra(android.content.Intent.EXTRA_TEXT, val);
-                      startActivity(Intent.createChooser(i, "Share"));
-                  });
-              }
-
-              void showDaily() {
-                  webView.loadData(null, "<html><body style='font-family:sans-serif; padding:20px;'><h3>Daily Verse</h3><p>John 3:16 - For God so loved the world...</p><p>Notification daily 8AM</p></body></html>", "text/html");
-              }
-
-              void showPlan() {
-                  webView.loadData(null, "<html><body style='font-family:sans-serif; padding:20px;'><h3>Reading Plan</h3><p>1 Year: 365 days<br>6 Months: 180 days<br>Auto-saved</p></body></html>", "text/html");
-              }
-
-              void buildChapters() {
-                  chapterBox.removeAllViews();
-                  int max = getMax(currentBook);
-                  for (int i = 1; i <= max; i++) {
-                      Button b = new Button(this);
-                      b.setText(String.valueOf(i));
-                      b.setTextSize(10);
-                      LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                      l.setMargins(2, 0, 2, 0);
-                      b.setLayoutParams(l);
-                      if (i == currentChapter) { b.setBackgroundColor(0xFF1E3A8A); b.setTextColor(Color.WHITE); }
-                      final int ch = i;
-                      b.setOnClickListener(v -> { currentChapter = ch; buildChapters(); buildVerses(); show(currentBook, ch, 1); });
-                      chapterBox.addView(b);
-                  }
-              }
-
-              void buildVerses() {
-                  verseBox.removeAllViews();
-                  for (int i = 1; i <= 30; i++) {
-                      Button b = new Button(this);
-                      b.setText(String.valueOf(i));
-                      b.setTextSize(9);
-                      LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                      l.setMargins(2, 0, 2, 0);
-                      b.setLayoutParams(l);
-                      if (i == currentVerse) { b.setBackgroundColor(0xFF3B82F6); b.setTextColor(Color.WHITE); }
-                      final int vs = i;
-                      b.setOnClickListener(v -> { currentVerse = vs; buildVerses(); show(currentBook, currentChapter, vs); });
-                      verseBox.addView(b);
-                  }
-              }
-
-              int getMax(String name) {
-                  Map<String,Integer> m = new HashMap<>();
-                  m.put("Genesis",50); m.put("Exodus",40); m.put("Psalm",150); m.put("Matthew",28); m.put("John",21); m.put("Revelation",22);
-                  return m.getOrDefault(name,30);
-              }
-
-              void loadDB() {
-                  try {
-                      File outFile = new File(getFilesDir(), "bible.db");
-                      if (!outFile.exists() || outFile.length() < 1000) {
-                          InputStream is = getAssets().open("bible.db");
-                          FileOutputStream fos = new FileOutputStream(outFile);
-                          byte[] buf = new byte[8192]; int len;
-                          while ((len = is.read(buf)) > 0) fos.write(buf, 0, len);
-                          fos.close(); is.close();
-                      }
-                      db = SQLiteDatabase.openDatabase(outFile.getPath(), null, SQLiteDatabase.OPEN_READONLY);
-                  } catch (Exception e) {
-                      try {
-                          File outFile = new File(getFilesDir(), "bible.db");
-                          InputStream is = getAssets().open("enduring_word_structured.sqlite3");
-                          FileOutputStream fos = new FileOutputStream(outFile);
-                          byte[] buf = new byte[8192]; int len;
-                          while ((len = is.read(buf)) > 0) fos.write(buf, 0, len);
-                          fos.close(); is.close();
-                          db = SQLiteDatabase.openDatabase(outFile.getPath(), null, SQLiteDatabase.OPEN_READONLY);
-                      } catch (Exception ex) {}
-                  }
-              }
-
-              void show(String book, int chapter, int verse) {
-                  currentChapter = chapter; currentVerse = verse; currentBook = book;
-                  prefs.edit().putString("last_book", book).putInt("last_ch", chapter).apply();
-                  smallStatus.setText(book + " " + chapter + ":" + verse + " - Complete - No cut - Auto saved");
-                  try {
-                      String content = "";
-                      Cursor tbls = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'", null);
-                      while (tbls.moveToNext()) {
-                          String t = tbls.getString(0);
-                          if (t.contains("android") || t.contains("sqlite")) continue;
-                          try {
-                              Cursor data = db.rawQuery("SELECT * FROM " + t + " WHERE book LIKE '%" + book + "%' AND chapter=" + chapter + " LIMIT 1", null);
-                              if (data.moveToFirst()) {
-                                  StringBuilder sb = new StringBuilder();
-                                  for (int i = 0; i < data.getColumnCount(); i++) {
-                                      String val = data.getString(i);
-                                      if (val!= null && val.length() > 100) sb.append(val).append("<br><br>");
-                                  }
-                                  content = sb.toString();
-                                  if (content.length() > 100) { data.close(); break; }
-                              }
-                              data.close();
-                          } catch (Exception ex) {}
-                      }
-                      tbls.close();
-                      if (content.length() < 100) {
-                          Cursor v = db.rawQuery("SELECT * FROM commentaries LIMIT 1", null);
-                          if (v.moveToFirst()) {
-                              StringBuilder sb = new StringBuilder();
-                              for (int i = 0; i < v.getColumnCount(); i++) {
-                                  String val = v.getString(i);
-                                  if (val!= null && val.length() > 100) sb.append(val);
-                              }
-                              String full = sb.toString();
-                              String lower = full.toLowerCase();
-                              int start = lower.indexOf(book.toLowerCase() + " " + chapter + ":");
-                              if (start < 0) start = lower.indexOf(book.toLowerCase() + " " + chapter);
-                              if (start >= 0) {
-                                  int end = full.length();
-                                  int nextCh = lower.indexOf(book.toLowerCase() + " " + (chapter+1) + ":", start+200);
-                                  if (nextCh > start) end = nextCh;
-                                  content = full.substring(start, Math.min(end, start+70000));
-                                  int lastP = content.lastIndexOf("</p>");
-                                  if (lastP > content.length()-600 && lastP > 0) content = content.substring(0, lastP+4);
-                              } else content = full.substring(0,50000);
-                          }
-                          v.close();
-                      }
-                      if (content.length() < 20) content = "<p>" + book + " " + chapter + ":" + verse + " commentary</p>";
-                      currentPlain = content;
-                      String html = "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:Georgia, serif; font-size:17px; line-height:1.9; padding:16px; color:#1e293b;} h3{color:#1e293b; font-family:sans-serif; font-size:19px; margin-top:24px;} p{margin:14px 0;}</style></head><body>" + content + "<br><br><div style='background:#f1f5f9; padding:10px; font-size:12px;'>Footnotes | Auto-saved | Reading Plan | Daily Verse | Audio</div></body></html>";
-                      webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null);
-                  } catch (Exception e) {
-                      webView.loadData(null, "<p>Error: " + e.toString() + "</p>", "text/html");
-                  }
-              }
-
-              void doSearch(String q) {
-                  if (q.length() < 2) return;
-                  try {
-                      Cursor v = db.rawQuery("SELECT * FROM commentaries LIMIT 1", null);
-                      if (v.moveToFirst()) {
-                          StringBuilder sb = new StringBuilder();
-                          for (int i = 0; i < v.getColumnCount(); i++) {
-                              String val = v.getString(i);
-                              if (val!= null && val.length() > 100) sb.append(val);
-                          }
-                          String full = sb.toString();
-                          int idx = full.toLowerCase().indexOf(q.toLowerCase());
-                          if (idx >= 0) {
-                              int start = Math.max(0, idx-300);
-                              int end = Math.min(full.length(), idx+12000);
-                              String snippet = full.substring(start, end);
-                              int lastP = snippet.lastIndexOf("</p>");
-                              if (lastP > 0) snippet = snippet.substring(0, lastP+4);
-                              webView.loadDataWithBaseURL(null, "<html><body style='font-family:sans-serif; padding:15px;'><h3>Search: " + q + "</h3>" + snippet + "</body></html>", "text/html", "UTF-8", null);
-                          }
-                      }
-                      v.close();
-                  } catch (Exception e) {}
-             
+      - name: Upload APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: EnduringWord-APK
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/**/*.apk
+            app/build/**/*.apk
+          if-no-files-found: warn
