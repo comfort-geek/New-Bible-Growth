@@ -13,13 +13,8 @@ jobs:
         run: |
           rm -rf build.gradle app/build.gradle settings.gradle gradle.properties app/src/main/java
           cat > settings.gradle <<'END'
-          pluginManagement {
-            repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          dependencyResolutionManagement {
-            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-            repositories { google(); mavenCentral() }
-          }
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
           include ':app'
           END
           cat > gradle.properties <<'END'
@@ -40,8 +35,8 @@ jobs:
               applicationId 'com.enduringword.app'
               minSdk 21
               targetSdk 33
-              versionCode 319
-              versionName 'Genesis1-Fixed-Build'
+              versionCode 320
+              versionName 'Fixed-PM-Import'
             }
             compileOptions {
               sourceCompatibility JavaVersion.VERSION_17
@@ -59,7 +54,7 @@ jobs:
           END
           cat > app/src/main/java/com/enduringword/app/MainActivity.java <<'END'
           package com.enduringword.app;
-          import android.app.*; import android.content.*; import android.database.Cursor; import android.database.sqlite.SQLiteDatabase; import android.graphics.*; import android.os.*; import android.speech.tts.TextToSpeech; import android.text.*; import android.text.style.BackgroundColorSpan; import android.view.*; import android.widget.*; import androidx.core.app.NotificationCompat; import java.io.*; import java.util.*;
+          import android.app.*; import android.content.*; import android.content.pm.PackageManager; import android.database.Cursor; import android.database.sqlite.SQLiteDatabase; import android.graphics.*; import android.os.*; import android.speech.tts.TextToSpeech; import android.text.*; import android.text.style.BackgroundColorSpan; import android.view.*; import android.widget.*; import androidx.core.app.NotificationCompat; import java.io.*; import java.util.*;
           public class MainActivity extends Activity implements TextToSpeech.OnInitListener{
             String[] ot={"Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalms","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi"};
             String[] nt={"Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation"};
