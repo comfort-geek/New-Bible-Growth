@@ -3,6 +3,8 @@ on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-22.04
+    env:
+      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
     steps:
       - uses: actions/checkout@v4
       
@@ -15,36 +17,30 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Buildozer deps
+      - name: Install deps & Java 17
         run: |
           sudo apt update
-          sudo apt install -y openjdk-17-jdk zip unzip autoconf libtool pkg-config zlib1g-dev libffi-dev libssl-dev cmake libncurses-dev libtinfo6
+          sudo apt install -y openjdk-17-jdk zip unzip autoconf libtool pkg-config zlib1g-dev libffi-dev libssl-dev cmake
+          java -version
+          echo $JAVA_HOME
 
-      - name: Fix Android SDK - sdkmanager path
+      - name: Clean old SDK conflict
         run: |
-          mkdir -p ~/.buildozer/android/platform
-          cd ~/.buildozer/android/platform
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-          unzip -q cmdline-tools.zip
-          mkdir -p android-sdk/cmdline-tools/latest
-          mv cmdline-tools/* android-sdk/cmdline-tools/latest/ 2>/dev/null || true
-          mv lib android-sdk/cmdline-tools/latest/ 2>/dev/null || true
-          # Create old path that Buildozer expects
-          mkdir -p android-sdk/tools/bin
-          ln -sf $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
-          # Accept licenses
-          mkdir -p android-sdk/licenses
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > android-sdk/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> android-sdk/licenses/android-sdk-license
-          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
-          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
-          yes | sdkmanager --licenses || true
-          yes | sdkmanager "build-tools;33.0.2" "platforms;android-33" "platform-tools" || true
+          rm -rf ~/.buildozer
+          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "24333f8a63b6825ea9c5514f83c1059b8ea4b68" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
 
       - name: Build APK
         run: |
           pip install --upgrade pip
-          pip install buildozer cython==0.29.33
+          pip install cython==0.29.33
+          pip install https://github.com/kivy/buildozer/archive/master.zip
+          pip install https://github.com/kivy/python-for-android/archive/master.zip
+          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          export ANDROID_SDK_ROOT=$HOME/.buildozer/android/platform/android-sdk
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
           buildozer android debug
 
       - uses: actions/upload-artifact@v4
