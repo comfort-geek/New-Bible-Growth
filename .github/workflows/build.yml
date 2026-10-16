@@ -12,6 +12,7 @@ jobs:
 
       - name: Create project files
         run: |
+          echo "=== CHECK bible.db ==="
           ls -lh app/src/main/assets/
           rm -f settings.gradle build.gradle gradle.properties app/build.gradle
           echo "include ':app'" > settings.gradle
@@ -19,12 +20,14 @@ jobs:
           buildscript { repositories { google(); mavenCentral() } dependencies { classpath 'com.android.tools.build:gradle:8.1.4' } }
           allprojects { repositories { google(); mavenCentral() } }
           EOF
-          echo "org.gradle.jvmargs=-Xmx2g" > gradle.properties
-          echo "android.useAndroidX=true" >> gradle.properties
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF
           echo "sdk.dir=/usr/local/lib/android/sdk" > local.properties
           cat > app/build.gradle << 'EOF'
           apply plugin: 'com.android.application'
-          android { namespace 'com.enduringword.app'; compileSdk 33; defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 311; versionName 'FixArtifact' } compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }
+          android { namespace 'com.enduringword.app'; compileSdk 33; defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 312; versionName 'RedBadgeFix' } compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }
           EOF
           cat > app/src/main/AndroidManifest.xml << 'EOF'
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.POST_NOTIFICATIONS"/><application android:label="Enduring Word" android:theme="@android:style/Theme.Material.Light"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>
@@ -78,20 +81,24 @@ jobs:
           }
           JAVA
 
-      - name: Build APK real
+      - name: Build APK
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: 8.5
+          arguments: assembleDebug --stacktrace
+
+      - name: List APKs
+        if: always()
         run: |
-         ./gradlew assembleDebug --no-daemon --stacktrace
-          echo "=== BUILD OUTPUTS ==="
-          find app/build -type f -name "*.apk" | head -20
-          ls -lh app/build/outputs/apk/debug/ || ls -lh app/build/outputs/ || echo "no apk folder"
+          echo "=== FIND APK ==="
+          find. -name "*.apk" -type f
+          ls -R app/build/outputs/ || echo "no outputs"
+          ls -lh app/build/outputs/apk/debug/ || true
 
       - name: Upload APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-APK
-          path: |
-            app/build/outputs/apk/debug/*.apk
-            app/build/outputs/apk/**/*.apk
-            app/build/**/*.apk
-          if-no-files-found: warn
+          name: EnduringWord-APK-Fixed
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
