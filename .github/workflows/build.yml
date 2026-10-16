@@ -1,4 +1,4 @@
-name: Enduring Word NO HEADER AUTO-FIX
+name: Build APK Fix
 on: [push]
 jobs:
   build:
@@ -9,53 +9,37 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - name: Create project files
+
+      - name: Fix Gradle Files
         run: |
-          rm -f settings.gradle build.gradle gradle.properties app/build.gradle local.properties
-          cat > settings.gradle << 'EOF'
-          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-          include ':app'
-          EOF
-          echo "// fixed" > build.gradle
+          rm -f settings.gradle build.gradle
+          echo "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }" > settings.gradle
+          echo "dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }" >> settings.gradle
+          echo "include ':app'" >> settings.gradle
+          echo "// empty root" > build.gradle
           echo "org.gradle.jvmargs=-Xmx2g" > gradle.properties
-          echo "android.useAndroidX=true" >> gradle.properties
           echo "sdk.dir=/usr/local/lib/android/sdk" > local.properties
-          cat > app/build.gradle << 'EOF'
-          plugins { id 'com.android.application' version '8.1.4' }
-          android { namespace 'com.enduringword.app'; compileSdk 33; defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 315; versionName 'FinalFix' } compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }
-          EOF
-          cat > app/src/main/AndroidManifest.xml << 'EOF'
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:label="Enduring Word" android:theme="@android:style/Theme.Material.Light"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity></application></manifest>
-          EOF
-          mkdir -p app/src/main/java/com/enduringword/app
-          cat > app/src/main/java/com/enduringword/app/MainActivity.java << 'JAVA'
-          package com.enduringword.app;
-          import android.app.Activity; import android.os.Bundle; import android.widget.TextView; import java.io.File; import java.io.FileOutputStream; import java.io.InputStream;
-          public class MainActivity extends Activity {
-            protected void onCreate(Bundle b){ super.onCreate(b); TextView tv=new TextView(this); tv.setPadding(20,20,20,20); tv.setText("Checking bible.db..."); setContentView(tv);
-              try{ File out=new File(getFilesDir(),"bible.db"); if(!out.exists()){ InputStream is=getAssets().open("bible.db"); FileOutputStream fos=new FileOutputStream(out); byte[] buf=new byte[8192]; int l; while((l=is.read(buf))>0) fos.write(buf,0,l); fos.close(); is.close(); } tv.setText("DB OK: "+out.length()/1024/1024+" MB"); }catch(Exception e){ tv.setText("Error: "+e.toString()); }
-            }
-          }
-          JAVA
+          echo "plugins { id 'com.android.application' version '8.1.4' }" > app/build.gradle
+          echo "android { namespace 'com.enduringword.app'; compileSdk 33; defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 316; versionName 'Minimal' } compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }" >> app/build.gradle
           mkdir -p gradle/wrapper
-          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          EOF
+          echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
+          echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
+          echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
+          echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
+          echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
           curl -sL -o gradle/wrapper/gradle-wrapper.jar https://github.com/gradle/gradle/raw/v8.5.0/gradle/wrapper/gradle-wrapper.jar
-          echo '#!/bin/sh' > gradlew
-          echo 'exec java -classpath "$(dirname "$0")/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"' >> gradlew
+          echo "#!/bin/sh" > gradlew
+          echo "exec java -classpath \"\$(dirname \"\$0\")/gradle/wrapper/gradle-wrapper.jar\" org.gradle.wrapper.GradleWrapperMain \"\$@\"" >> gradlew
           chmod +x gradlew
+          ls -lh gradlew
+
       - name: Build APK
         run: |
           chmod +x gradlew
          ./gradlew assembleDebug --no-daemon
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: EnduringWord-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
