@@ -21,12 +21,19 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y openjdk-17-jdk zip unzip autoconf libtool pkg-config zlib1g-dev libffi-dev libssl-dev cmake libtinfo6
-
       - name: Patch Buildozer for new SDK
         run: |
           pip install --upgrade pip
           pip install cython==0.29.33
           pip install https://github.com/kivy/buildozer/archive/master.zip
+          pip install https://github.com/kivy/python-for-android/archive/master.zip
+          # Find and patch the sdkmanager path bug - CORRECT PATH
+          BUILDOZER_DIR=$(python -c "import buildozer.targets.android, os; print(os.path.dirname(buildozer.targets.android.__file__))")
+          BUILDOZER_FILE="$BUILDOZER_DIR/android.py"
+          echo "Patching $BUILDOZER_FILE"
+          sed -i 's|tools/bin/sdkmanager|cmdline-tools/latest/bin/sdkmanager|g' "$BUILDOZER_FILE"
+          sed -i 's|tools/bin/avdmanager|cmdline-tools/latest/bin/avdmanager|g' "$BUILDOZER_FILE"
+          echo "Patched OK" https://github.com/kivy/buildozer/archive/master.zip
           pip install https://github.com/kivy/python-for-android/archive/master.zip
           # Find and patch the sdkmanager path bug
           BUILDOZER_FILE=$(python -c "import buildozer.targets.android; import os; print(os.path.dirname(buildozer.targets.android.__file__))")/targets/android.py
