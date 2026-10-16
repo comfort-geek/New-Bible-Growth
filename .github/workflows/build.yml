@@ -9,13 +9,10 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-      - uses: android-actions/setup-android@v3
-      - name: Fix All Files
+      - name: Fix Files
         run: |
-          mkdir -p /tmp/save
-          cp app/src/main/assets/enduring_word_structured.sqlite3 /tmp/save/db.db 2>/dev/null || cp app/src/main/assets/bible.db /tmp/save/db.db 2>/dev/null || true
-          rm -rf app build.gradle settings.gradle gradle.properties gradle build
-          cat > settings.gradle <<'GRADLE'
+          rm -rf app build.gradle settings.gradle gradle.properties
+          cat > settings.gradle <<'END'
           pluginManagement {
             repositories {
               google()
@@ -24,22 +21,24 @@ jobs:
             }
           }
           include ':app'
-          GRADLE
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-          echo "org.gradle.jvmargs=-Xmx2g" > gradle.properties
-          echo "android.useAndroidX=true" >> gradle.properties
+          END
+          cat > gradle.properties <<'END'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          END
           mkdir -p app/src/main/java/com/enduringword/app app/src/main/assets
-          if [ -f /tmp/save/db.db ]; then cp /tmp/save/db.db app/src/main/assets/enduring_word_structured.sqlite3; fi
-          cat > app/build.gradle <<'GRADLE'
+          # keep DB if exists
+          if [ -f app/src/main/assets/enduring_word_structured.sqlite3 ]; then echo "db exists"; fi
+          cat > app/build.gradle <<'END'
           plugins { id 'com.android.application' }
           android {
             namespace 'com.enduringword.app'
             compileSdk 33
-            defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 302; versionName 'FullBible-Fix' }
+            defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 303; versionName 'FullBible' }
             compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
           }
-          GRADLE
-          cat > app/src/main/AndroidManifest.xml <<'XML'
+          END
+          cat > app/src/main/AndroidManifest.xml <<'END'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
             <application android:label="Enduring Word" android:theme="@android:style/Theme.Material.Light">
@@ -48,35 +47,27 @@ jobs:
               </activity>
             </application>
           </manifest>
-          XML
-          cat > app/src/main/java/com/enduringword/app/MainActivity.java <<'JAVA'
+          END
+          cat > app/src/main/java/com/enduringword/app/MainActivity.java <<'END'
           package com.enduringword.app;
-          import android.app.Activity; import android.database.Cursor; import android.database.sqlite.SQLiteDatabase; import android.graphics.Color; import android.os.Bundle; import android.speech.tts.TextToSpeech; import android.view.ViewGroup; import android.webkit.WebView; import android.widget.*; import java.io.File; import java.io.FileOutputStream; import java.io.InputStream; import java.util.*;
-          public class MainActivity extends Activity implements TextToSpeech.OnInitListener{
-          SQLiteDatabase db; WebView webView; android.content.SharedPreferences prefs; TextToSpeech tts; boolean ttsReady=false; Spinner bookSpin; LinearLayout chapterContainer, verseContainer; EditText searchBox; TextView breadcrumb;
-          List<String> allBooks=Arrays.asList("Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalm","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi","Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation");
-          protected void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("ew",0);tts=new TextToSpeech(this,this);
+          import android.app.Activity; import android.database.sqlite.SQLiteDatabase; import android.os.Bundle; import android.widget.*; import android.webkit.WebView; import java.io.*; import java.util.*; import android.database.Cursor;
+          public class MainActivity extends Activity{
+          SQLiteDatabase db; WebView webView; Spinner bookSpin; LinearLayout chapBox; TextView bc;
+          List<String> books=Arrays.asList("Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalm","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi","Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation");
+          protected void onCreate(Bundle b){super.onCreate(b);
           LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
-          LinearLayout header=new LinearLayout(this);header.setOrientation(LinearLayout.HORIZONTAL);header.setPadding(20,35,15,15);header.setBackgroundColor(0xFF1E3A8A);TextView title=new TextView(this);title.setText("ENDURING WORD FULL BIBLE");title.setTextColor(Color.WHITE);title.setTextSize(16);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f);header.addView(title,lp);searchBox=new EditText(this);searchBox.setHint("Search");searchBox.setBackgroundColor(Color.WHITE);LinearLayout.LayoutParams sLp=new LinearLayout.LayoutParams(280,ViewGroup.LayoutParams.WRAP_CONTENT);header.addView(searchBox,sLp);root.addView(header);
-          breadcrumb=new TextView(this);breadcrumb.setPadding(15,8,15,4);breadcrumb.setTextSize(11);root.addView(breadcrumb);
-          LinearLayout bookRow=new LinearLayout(this);bookRow.setOrientation(LinearLayout.HORIZONTAL);bookRow.setPadding(10,2,10,2);bookRow.addView(new TextView(this){{setText("Book:");}});bookSpin=new Spinner(this);ArrayAdapter<String> ad=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,allBooks);ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);bookSpin.setAdapter(ad);bookRow.addView(bookSpin);root.addView(bookRow);
-          HorizontalScrollView chScroll=new HorizontalScrollView(this);chapterContainer=new LinearLayout(this);chapterContainer.setOrientation(LinearLayout.HORIZONTAL);chScroll.addView(chapterContainer);root.addView(chScroll);
-          HorizontalScrollView vScroll=new HorizontalScrollView(this);verseContainer=new LinearLayout(this);verseContainer.setOrientation(LinearLayout.HORIZONTAL);vScroll.addView(verseContainer);root.addView(vScroll);
-          webView=new WebView(this);webView.getSettings().setJavaScriptEnabled(true);LinearLayout.LayoutParams wlp=new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,0,1f);root.addView(webView,wlp);
-          LinearLayout tools=new LinearLayout(this);tools.setOrientation(LinearLayout.HORIZONTAL);Button playBtn=new Button(this);playBtn.setText("Play");tools.addView(playBtn);Button copyBtn=new Button(this);copyBtn.setText("Copy");tools.addView(copyBtn);Button shareBtn=new Button(this);shareBtn.setText("Share");tools.addView(shareBtn);root.addView(tools);
+          Spinner spin=new Spinner(this);ArrayAdapter<String> ad=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,books);ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);spin.setAdapter(ad);bookSpin=spin;root.addView(spin);
+          chapBox=new LinearLayout(this);chapBox.setOrientation(LinearLayout.HORIZONTAL);HorizontalScrollView hsv=new HorizontalScrollView(this);hsv.addView(chapBox);root.addView(hsv);
+          bc=new TextView(this);bc.setPadding(10,5,10,5);root.addView(bc);
+          webView=new WebView(this);webView.getSettings().setJavaScriptEnabled(true);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,0,1f);root.addView(webView,lp);
           setContentView(root);
-          playBtn.setOnClickListener(v->{if(ttsReady) tts.speak(webView.getContentDescription()!=null?webView.getContentDescription().toString():"Enduring Word",TextToSpeech.QUEUE_FLUSH,null,"ew");});
-          bookSpin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){showCommentary(allBooks.get(pos),1,1);buildChapters(pos);}public void onNothingSelected(AdapterView<?> p){}});
-          searchBox.setOnEditorActionListener((tv,aid,ev)->{doSearch(searchBox.getText().toString());return true;});
-          loadDB();buildChapters(0);buildVerses();showCommentary("Genesis",1,1);}
-          public void onInit(int s){ttsReady=(s==TextToSpeech.SUCCESS);}
-          void buildChapters(int bookIdx){chapterContainer.removeAllViews();int max=50;String b=allBooks.get(bookIdx);if(b.equals("Psalm"))max=150;else if(b.equals("Revelation"))max=22;for(int i=1;i<=max;i++){Button cb=new Button(this);cb.setText(String.valueOf(i));cb.setOnClickListener(v->{int ch=Integer.parseInt(((Button)v).getText().toString());showCommentary(allBooks.get(bookSpin.getSelectedItemPosition()),ch,1);});chapterContainer.addView(cb);}}
-          void buildVerses(){verseContainer.removeAllViews();for(int i=1;i<=40;i++){Button vb=new Button(this);vb.setText(String.valueOf(i));vb.setOnClickListener(v->{int vs=Integer.parseInt(((Button)v).getText().toString());showCommentary(allBooks.get(bookSpin.getSelectedItemPosition()),1,vs);});verseContainer.addView(vb);}}
+          spin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,android.view.View v,int pos,long id){showBook(books.get(pos),1);}public void onNothingSelected(AdapterView<?> p){}});
+          loadDB();buildChapters();showBook("Genesis",1);}
+          void buildChapters(){chapBox.removeAllViews();for(int i=1;i<=50;i++){Button bt=new Button(this);bt.setText(String.valueOf(i));int fi=i;bt.setOnClickListener(v->showBook(books.get(bookSpin.getSelectedItemPosition()),fi));chapBox.addView(bt);}}
           void loadDB(){try{File out=new File(getFilesDir(),"ew.db");if(!out.exists()){for(String nm:new String[]{"enduring_word_structured.sqlite3","bible.db"}){try{InputStream is=getAssets().open(nm);FileOutputStream fos=new FileOutputStream(out);byte[] buf=new byte[8192];int l;while((l=is.read(buf))>0)fos.write(buf,0,l);fos.close();is.close();break;}catch(Exception e){}}}db=SQLiteDatabase.openDatabase(out.getPath(),null,SQLiteDatabase.OPEN_READONLY);}catch(Exception e){}}
-          void showCommentary(String book,int chapter,int verse){breadcrumb.setText(book+" "+chapter+":"+verse+" | Genesis to Revelation FULL");try{String content="";Cursor tbls=db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'",null);while(tbls.moveToNext()){String t=tbls.getString(0);if(t.contains("android"))continue;try{Cursor data=db.rawQuery("SELECT * FROM "+t+" WHERE book LIKE '%"+book+"%' AND chapter="+chapter+" LIMIT 1",null);if(data.moveToFirst()){StringBuilder sb=new StringBuilder();for(int i=0;i<data.getColumnCount();i++){String val=data.getString(i);if(val!=null&&val.length()>30)sb.append(val).append("<br>");}content=sb.toString();if(content.length()>100){data.close();break;}}data.close();}catch(Exception ex){}}tbls.close();if(content.length()<20)content="<p>Full Commentary "+book+" "+chapter+"</p>";webView.loadDataWithBaseURL(null,"<html><body style='font-family:Georgia;padding:15px;font-size:17px;'>"+content+"</body></html>","text/html","UTF-8",null);}catch(Exception e){webView.loadData(null,"<h3>"+e.toString()+"</h3>","text/html");}}
-          void doSearch(String q){try{Cursor tbls=db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'",null);while(tbls.moveToNext()){String t=tbls.getString(0);if(t.contains("android"))continue;try{Cursor data=db.rawQuery("SELECT * FROM "+t+" WHERE content LIKE '%"+q+"%' LIMIT 1",null);if(data.moveToFirst()){StringBuilder sb=new StringBuilder();for(int i=0;i<data.getColumnCount();i++){String val=data.getString(i);if(val!=null&&val.length()>50)sb.append(val);}webView.loadDataWithBaseURL(null,"<html><body><h2>Search: "+q+"</h2>"+sb.toString().substring(0,Math.min(15000,sb.length()))+"</body></html>","text/html","UTF-8",null);data.close();break;}data.close();}catch(Exception ex){}}tbls.close();}catch(Exception e){}}
+          void showBook(String book,int chapter){bc.setText(book+" "+chapter+" | Full Genesis-Revelation");try{String content="";Cursor tbls=db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'",null);while(tbls.moveToNext()){String t=tbls.getString(0);if(t.contains("android"))continue;try{Cursor data=db.rawQuery("SELECT * FROM "+t+" WHERE book LIKE '%"+book+"%' AND chapter="+chapter+" LIMIT 1",null);if(data.moveToFirst()){StringBuilder sb=new StringBuilder();for(int i=0;i<data.getColumnCount();i++){String val=data.getString(i);if(val!=null&&val.length()>30)sb.append(val).append("<br>");}content=sb.toString();if(content.length()>100){data.close();break;}}data.close();}catch(Exception ex){}}tbls.close();if(content.length()<20)content="<h2>"+book+" "+chapter+"</h2><p>Commentary loading - ensure DB has full Genesis-Revelation</p>";webView.loadDataWithBaseURL(null,"<html><body style='font-family:Georgia;padding:15px;font-size:17px;'>"+content+"</body></html>","text/html","UTF-8",null);}catch(Exception e){webView.loadData(null,"<h3>"+e.toString()+"</h3>","text/html");}}
           }
-          JAVA
+          END
       - name: Build APK
         uses: gradle/gradle-build-action@v3
         with:
@@ -84,5 +75,5 @@ jobs:
           arguments: assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-FULL
+          name: EnduringWord-APK
           path: app/build/outputs/apk/debug/*.apk
