@@ -13,62 +13,45 @@ jobs:
       - name: Fix All Files
         run: |
           rm -rf build.gradle app/build.gradle settings.gradle gradle.properties app/src/main/java
-
           cat > settings.gradle <<'END'
-          pluginManagement {
-            repositories {
-              google()
-              mavenCentral()
-              gradlePluginPortal()
-            }
-          }
-          dependencyResolutionManagement {
-            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-            repositories {
-              google()
-              mavenCentral()
-            }
-          }
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
           include ':app'
           END
-
           cat > gradle.properties <<'END'
           org.gradle.jvmargs=-Xmx2g
           android.useAndroidX=true
           END
+          mkdir -p app/src/main/java/com/enduringword/app app/src/main/assets app/src/main/res/mipmap-hdpi app/src/main/res/mipmap-xxxhdpi
 
-          mkdir -p app/src/main/java/com/enduringword/app app/src/main/assets
+          # AUTO-FIND YOUR ICON and copy to correct mipmap folders
+          for f in app/src/main/res/icon.png app/src/main/res/ic_launcher.png app/src/main/assets/icon.png app/icon.png icon.png app/src/main/ic_launcher.png; do
+            if [ -f "$f" ]; then
+              echo "Found icon at $f - copying"
+              cp "$f" app/src/main/res/mipmap-hdpi/ic_launcher.png
+              cp "$f" app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+              break
+            fi
+          done
+          ls -lh app/src/main/assets/ | grep -i bible || echo "Checking bible.db"
+          ls -lh app/src/main/res/mipmap-hdpi/
 
           cat > app/build.gradle <<'END'
-          plugins {
-            id 'com.android.application' version '8.1.2' apply true
-          }
+          plugins { id 'com.android.application' version '8.1.2' apply true }
           android {
             namespace 'com.enduringword.app'
             compileSdk 33
-            defaultConfig {
-              applicationId 'com.enduringword.app'
-              minSdk 21
-              targetSdk 33
-              versionCode 304
-              versionName 'FullBible-Fixed'
-            }
-            compileOptions {
-              sourceCompatibility JavaVersion.VERSION_17
-              targetCompatibility JavaVersion.VERSION_17
-            }
+            defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 306; versionName 'FullBible-Icon-Fixed' }
+            compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
           }
           END
 
           cat > app/src/main/AndroidManifest.xml <<'END'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-            <application android:label="Enduring Word" android:theme="@android:style/Theme.Material.Light">
-              <activity android:name=".MainActivity" android:exported="true">
-                <intent-filter>
-                  <action android:name="android.intent.action.MAIN"/>
-                  <category android:name="android.intent.category.LAUNCHER"/>
-                </intent-filter>
+            <application android:label="Enduring Word Full" android:icon="@mipmap/ic_launcher" android:theme="@android:style/Theme.Material.Light">
+              <activity android:name=".MainActivity" android:exported="true" android:icon="@mipmap/ic_launcher">
+                <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
               </activity>
             </application>
           </manifest>
@@ -82,103 +65,57 @@ jobs:
           import android.os.Bundle;
           import android.widget.*;
           import android.webkit.WebView;
+          import android.speech.tts.TextToSpeech;
+          import android.content.*;
+          import android.view.*;
           import java.io.*;
           import java.util.*;
-          public class MainActivity extends Activity{
+          public class MainActivity extends Activity implements TextToSpeech.OnInitListener{
             SQLiteDatabase db;
             WebView webView;
-            Spinner bookSpin;
-            LinearLayout chapBox;
-            TextView bc;
+            Spinner bookSpin, scopeSpin;
+            LinearLayout chapBox, controlsBox;
+            TextView bc, dailyTxt;
+            SearchView searchView;
+            TextToSpeech tts;
+            SharedPreferences prefs;
+            String currentBook="Genesis"; int currentChap=1; String currentContent="";
             List<String> books=Arrays.asList("Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalm","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi","Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation");
+            Map<String,Integer> chapCounts=new HashMap<String,Integer>(){{ put("Genesis",50); put("Exodus",40); put("Psalm",150); put("Matthew",28); put("Mark",16); put("Luke",24); put("John",21); put("Acts",28); put("Revelation",22); }};
             protected void onCreate(Bundle b){
               super.onCreate(b);
-              LinearLayout root=new LinearLayout(this);
-              root.setOrientation(LinearLayout.VERTICAL);
-              Spinner spin=new Spinner(this);
-              ArrayAdapter<String> ad=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,books);
-              ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-              spin.setAdapter(ad);
-              bookSpin=spin;
-              root.addView(spin);
-              chapBox=new LinearLayout(this);
-              chapBox.setOrientation(LinearLayout.HORIZONTAL);
-              HorizontalScrollView hsv=new HorizontalScrollView(this);
-              hsv.addView(chapBox);
-              root.addView(hsv);
-              bc=new TextView(this);
-              bc.setPadding(10,5,10,5);
-              root.addView(bc);
-              webView=new WebView(this);
-              webView.getSettings().setJavaScriptEnabled(true);
-              LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,0,1f);
-              root.addView(webView,lp);
+              prefs=getSharedPreferences("ew_full",0);
+              tts=new TextToSpeech(this,this);
+              LinearLayout root=new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setPadding(5,5,5,5);
+              dailyTxt=new TextView(this); dailyTxt.setText("Daily: Psalm 1:2 - his delight is in the law of the LORD"); dailyTxt.setPadding(10,10,10,10); dailyTxt.setBackgroundColor(0xFFE3F2FD);
+              root.addView(dailyTxt);
+              LinearLayout topRow=new LinearLayout(this); topRow.setOrientation(LinearLayout.HORIZONTAL);
+              bookSpin=new Spinner(this); ArrayAdapter<String> ad=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,books); ad.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item); bookSpin.setAdapter(ad); topRow.addView(bookSpin,new LinearLayout.LayoutParams(0,-2,1f));
+              scopeSpin=new Spinner(this); scopeSpin.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,Arrays.asList("All","OT","NT","This Book"))); topRow.addView(scopeSpin);
+              root.addView(topRow);
+              searchView=new SearchView(this); searchView.setQueryHint("Search commentary..."); searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener(){ public boolean onQueryTextSubmit(String q){doSearch(q); return true;} public boolean onQueryTextChange(String s){return false;}}); root.addView(searchView);
+              chapBox=new LinearLayout(this); chapBox.setOrientation(LinearLayout.HORIZONTAL); HorizontalScrollView hsv=new HorizontalScrollView(this); hsv.addView(chapBox); root.addView(hsv);
+              controlsBox=new LinearLayout(this); controlsBox.setOrientation(LinearLayout.HORIZONTAL);
+              Button play=new Button(this); play.setText("▶ Play"); play.setOnClickListener(v->speak()); controlsBox.addView(play);
+              Button stop=new Button(this); stop.setText("■ Stop"); stop.setOnClickListener(v->tts.stop()); controlsBox.addView(stop);
+              Button copy=new Button(this); copy.setText("Copy"); copy.setOnClickListener(v->{ClipboardManager cm=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE); cm.setPrimaryClip(ClipData.newPlainText("EW",currentContent)); Toast.makeText(this,"Copied",0).show();}); controlsBox.addView(copy);
+              Button share=new Button(this); share.setText("Share"); share.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_SEND); i.setType("text/plain"); i.putExtra(Intent.EXTRA_TEXT,currentBook+" "+currentChap+" - "+currentContent.substring(0,Math.min(500,currentContent.length()))); startActivity(Intent.createChooser(i,"Share"));}); controlsBox.addView(share);
+              Button hl=new Button(this); hl.setText("Highlight"); hl.setOnClickListener(v->{prefs.edit().putString(currentBook+"_"+currentChap,currentContent.substring(0,Math.min(100,currentContent.length()))).apply(); Toast.makeText(this,"Highlighted",0).show();}); controlsBox.addView(hl);
+              root.addView(controlsBox);
+              bc=new TextView(this); bc.setPadding(10,5,10,5); bc.setTextSize(16); bc.setBackgroundColor(0xFFFFF9C4); root.addView(bc);
+              webView=new WebView(this); webView.getSettings().setJavaScriptEnabled(true); root.addView(webView,new LinearLayout.LayoutParams(-1,0,1f));
+              LinearLayout planRow=new LinearLayout(this); Button p1=new Button(this); p1.setText("1-Year Plan"); p1.setOnClickListener(v->showPlan("1-Year: Genesis 1-2, Matthew 1, Psalm 1...")); Button p2=new Button(this); p2.setText("6-Month Plan"); p2.setOnClickListener(v->showPlan("6-Month: Genesis 1-3, Mark 1...")); planRow.addView(p1); planRow.addView(p2); root.addView(planRow);
               setContentView(root);
-              spin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
-                public void onItemSelected(AdapterView<?> p,android.view.View v,int pos,long id){showBook(books.get(pos),1);}
-                public void onNothingSelected(AdapterView<?> p){}
-              });
-              loadDB();
-              buildChapters();
-              showBook("Genesis",1);
+              bookSpin.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){ public void onItemSelected(AdapterView<?> p,View v,int pos,long id){currentBook=books.get(pos); currentChap=1; buildChapters(); showBook(currentBook,currentChap);} public void onNothingSelected(AdapterView<?> p){}});
+              loadDB(); buildChapters(); showBook("Genesis",1);
             }
-            void buildChapters(){
-              chapBox.removeAllViews();
-              for(int i=1;i<=50;i++){
-                Button bt=new Button(this);
-                bt.setText(String.valueOf(i));
-                int fi=i;
-                bt.setOnClickListener(v->showBook(books.get(bookSpin.getSelectedItemPosition()),fi));
-                chapBox.addView(bt);
-              }
-            }
-            void loadDB(){
-              try{
-                File out=new File(getFilesDir(),"ew.db");
-                if(!out.exists()){
-                  for(String nm:new String[]{"enduring_word_structured.sqlite3","bible.db"}){
-                    try{
-                      InputStream is=getAssets().open(nm);
-                      FileOutputStream fos=new FileOutputStream(out);
-                      byte[] buf=new byte[8192];
-                      int l;
-                      while((l=is.read(buf))>0)fos.write(buf,0,l);
-                      fos.close();is.close();break;
-                    }catch(Exception e){}
-                  }
-                }
-                db=SQLiteDatabase.openDatabase(out.getPath(),null,SQLiteDatabase.OPEN_READONLY);
-              }catch(Exception e){}
-            }
-            void showBook(String book,int chapter){
-              bc.setText(book+" "+chapter+" | Full Genesis-Revelation");
-              try{
-                String content="";
-                Cursor tbls=db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'",null);
-                while(tbls.moveToNext()){
-                  String t=tbls.getString(0);
-                  if(t.contains("android"))continue;
-                  try{
-                    Cursor data=db.rawQuery("SELECT * FROM "+t+" WHERE book LIKE '%"+book+"%' AND chapter="+chapter+" LIMIT 1",null);
-                    if(data.moveToFirst()){
-                      StringBuilder sb=new StringBuilder();
-                      for(int i=0;i<data.getColumnCount();i++){
-                        String val=data.getString(i);
-                        if(val!=null&&val.length()>30)sb.append(val).append("<br>");
-                      }
-                      content=sb.toString();
-                      if(content.length()>100){data.close();break;}
-                    }
-                    data.close();
-                  }catch(Exception ex){}
-                }
-                tbls.close();
-                if(content.length()<20)content="<h2>"+book+" "+chapter+"</h2><p>Commentary loading - ensure DB has full Genesis-Revelation</p>";
-                webView.loadDataWithBaseURL(null,"<html><body style='font-family:Georgia;padding:15px;font-size:17px;'>"+content+"</body></html>","text/html","UTF-8",null);
-              }catch(Exception e){
-                webView.loadData(null,"<h3>"+e.toString()+"</h3>","text/html");
-              }
-            }
+            public void onInit(int s){}
+            void speak(){ if(currentContent.length()>0) tts.speak(currentContent.substring(0,Math.min(4000,currentContent.length())),TextToSpeech.QUEUE_FLUSH,null,null); }
+            void showPlan(String t){ webView.loadData("<h3>Reading Plan</h3><p>"+t+"</p>","text/html","UTF-8"); }
+            void doSearch(String q){ try{ String scope=(String)scopeSpin.getSelectedItem(); String where=""; if(scope.equals("OT")) where=" AND rowid < 40000"; if(scope.equals("NT")) where=" AND rowid >= 40000"; if(scope.equals("This Book")) where=" AND book LIKE '%"+currentBook+"%'"; Cursor tbls=db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'",null); StringBuilder res=new StringBuilder("<h2>Search: "+q+" Scope: "+scope+"</h2>"); while(tbls.moveToNext()){ String t=tbls.getString(0); if(t.contains("android")) continue; try{ Cursor c=db.rawQuery("SELECT * FROM "+t+" WHERE content LIKE '%"+q+"%'"+where+" LIMIT 20",null); while(c.moveToNext()){ res.append("<p>").append(c.getString(0)).append("</p>"); } c.close(); }catch(Exception ex){} } tbls.close(); webView.loadData(res.toString(),"text/html","UTF-8"); }catch(Exception e){ webView.loadData("<p>Search error: "+e+"</p>","text/html","UTF-8"); } }
+            void buildChapters(){ chapBox.removeAllViews(); int max=chapCounts.containsKey(currentBook)?chapCounts.get(currentBook):50; if(currentBook.equals("Psalm")) max=150; for(int i=1;i<=max;i++){ Button bt=new Button(this); bt.setText(String.valueOf(i)); int fi=i; bt.setOnClickListener(v->showBook(currentBook,fi)); chapBox.addView(bt); } }
+            void loadDB(){ try{ File out=new File(getFilesDir(),"bible.db"); if(!out.exists()){ for(String nm:new String[]{"bible.db","enduring_word_structured.sqlite3","ew.db"}){ try{ InputStream is=getAssets().open(nm); FileOutputStream fos=new FileOutputStream(out); byte[] buf=new byte[8192]; int l; while((l=is.read(buf))>0)fos.write(buf,0,l); fos.close(); is.close(); break; }catch(Exception e){} } } db=SQLiteDatabase.openDatabase(out.getPath(),null,SQLiteDatabase.OPEN_READONLY); }catch(Exception e){} }
+            void showBook(String book,int chapter){ currentBook=book; currentChap=chapter; bc.setText(book+" "+chapter+" | Full Genesis-Revelation | DB: bible.db"); try{ String content=""; Cursor tbls=db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'",null); while(tbls.moveToNext()){ String t=tbls.getString(0); if(t.contains("android")) continue; try{ Cursor data=db.rawQuery("SELECT * FROM "+t+" WHERE book LIKE '%"+book+"%' AND chapter="+chapter+" LIMIT 1",null); if(data.moveToFirst()){ StringBuilder sb=new StringBuilder(); for(int i=0;i<data.getColumnCount();i++){ String val=data.getString(i); if(val!=null&&val.length()>30) sb.append(val).append("<br><hr>"); } content=sb.toString(); if(content.length()>100){data.close();break;} } data.close(); }catch(Exception ex){} } tbls.close(); if(content.length()<20) content="<h2>"+book+" "+chapter+"</h2><p>Loaded from bible.db - if empty, check DB tables.</p>"; currentContent=content; webView.loadDataWithBaseURL(null,"<html><body style='font-family:Georgia;padding:15px;font-size:17px;line-height:1.6;'>"+content+"<br><br><small>Footnote: Enduring Word - bible.db</small></body></html>","text/html","UTF-8",null); }catch(Exception e){ webView.loadData(null,"<h3>"+e.toString()+"</h3>","text/html"); } }
           }
           END
 
@@ -190,5 +127,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-APK
+          name: EnduringWord-FULL-Icon
           path: app/build/outputs/apk/debug/*.apk
