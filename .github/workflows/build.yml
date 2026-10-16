@@ -9,26 +9,26 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-
       - name: Fix Gradle
         run: |
           rm -f settings.gradle build.gradle
-          printf "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }\ninclude ':app'\n" > settings.gradle
-          echo "// empty" > build.gradle
-          echo "org.gradle.jvmargs=-Xmx2g" > gradle.properties
-          echo "sdk.dir=/usr/local/lib/android/sdk" > local.properties
-          printf "plugins { id 'com.android.application' version '8.1.4' }\nandroid { namespace 'com.enduringword.app'; compileSdk 33; defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 316; versionName 'Minimal' } compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }\n" > app/build.gradle
-          mkdir -p gradle/wrapper
-          printf "distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.5-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists\n" > gradle/wrapper/gradle-wrapper.properties
+          python3 << 'PY'
+          open('settings.gradle','w').write("pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }\ninclude ':app'\n")
+          open('build.gradle','w').write("// empty\n")
+          open('gradle.properties','w').write("org.gradle.jvmargs=-Xmx2g\n")
+          open('local.properties','w').write("sdk.dir=/usr/local/lib/android/sdk\n")
+          open('app/build.gradle','w').write("plugins { id 'com.android.application' version '8.1.4' }\nandroid { namespace 'com.enduringword.app'; compileSdk 33; defaultConfig { applicationId 'com.enduringword.app'; minSdk 21; targetSdk 33; versionCode 316; versionName 'Minimal' } compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 } }\n")
+          import os
+          os.makedirs('gradle/wrapper', exist_ok=True)
+          open('gradle/wrapper/gradle-wrapper.properties','w').write("distributionBase=GRADLE_USER_HOME\ndistributionPath=wrapper/dists\ndistributionUrl=https\\://services.gradle.org/distributions/gradle-8.5-bin.zip\nzipStoreBase=GRADLE_USER_HOME\nzipStorePath=wrapper/dists\n")
+          PY
           curl -sL https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradle/wrapper/gradle-wrapper.jar -o gradle/wrapper/gradle-wrapper.jar
           curl -sL https://raw.githubusercontent.com/gradle/gradle/v8.5.0/gradlew -o gradlew
           chmod +x gradlew
-
       - name: Build APK
         run: |
           chmod +x gradlew
          ./gradlew assembleDebug --no-daemon
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
