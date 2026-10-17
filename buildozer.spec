@@ -11,10 +11,11 @@ orientation = portrait
 android.api = 33
 android.minapi = 21
 android.ndk = 25b
-android.archs = arm64-v8a
+android.archs = armeabi-v7a
 android.accept_sdk_license_agreements = True
 android.permissions = INTERNET
 p4a.branch = master
+
 [buildozer]
 log_level = 1
 warn_on_root = 1
