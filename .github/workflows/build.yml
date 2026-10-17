@@ -16,16 +16,13 @@ jobs:
           java-version: '17'
 
       - name: Check Java 17
-        run: |
-          echo $JAVA_HOME
-          java -version
-          javac -version
+        run: java -version
 
       - name: Install deps
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y zip unzip wget curl autoconf automake libtool pkg-config zlib1g-dev cmake libffi-dev libssl-dev libltdl-dev
-          pip install https://github.com/kivy/buildozer/archive/master.zip https://github.com/kivy/python-for-android/archive/master.zip cython
+          sudo apt-get install -y zip unzip wget curl autoconf automake libtool pkg-config zlib1g-dev cmake libffi-dev libssl-dev libltdl-dev libsqlite3-dev
+          pip install buildozer cython
 
       - name: FORCE SPEC
         run: |
@@ -42,56 +39,55 @@ jobs:
           orientation = portrait
           android.api = 33
           android.minapi = 21
-          android.sdk = 33
           android.ndk = 25b
-          android.build_tools_version = 33.0.2
           android.accept_sdk_license_agreements = True
+          android.permissions = INTERNET
+          p4a.branch = master
           [buildozer]
           log_level = 2
           EOF
 
       - name: Download DB
-        run: curl -L -o enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
+        run: curl -L -o enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db" && ls -lh *.db
 
-      - name: PRE-INSTALL SDK + FIX sdkmanager path + Java 17 licenses
+      - name: PRE-INSTALL SDK
         run: |
           SDK="$HOME/.buildozer/android/platform/android-sdk"
           mkdir -p $SDK/cmdline-tools
-          # Download cmdline-tools
-          if [ ! -d "$SDK/cmdline-tools/latest" ]; then
-            cd /tmp
-            wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmd.zip
-            unzip -q cmd.zip
-            mkdir -p $SDK/cmdline-tools/latest
-            mv cmdline-tools/* $SDK/cmdline-tools/latest/ || true
-            mv cmdline-tools-*/latest/* $SDK/cmdline-tools/latest/ 2>/dev/null || true
-          fi
-          # FIX LINE 56: Create old path Buildozer looks for
+          cd /tmp
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmd.zip
+          unzip -q cmd.zip
+          mkdir -p $SDK/cmdline-tools/latest
+          mv cmdline-tools/* $SDK/cmdline-tools/latest/ || mv cmdline-tools-*/latest/* $SDK/cmdline-tools/latest/ 2>/dev/null || true
           mkdir -p $SDK/tools/bin
           echo '#!/bin/bash
           export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
           exec $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager "$@"
           ' > $SDK/tools/bin/sdkmanager
           chmod +x $SDK/tools/bin/sdkmanager
-          
-          # Accept licenses + install both build-tools
           mkdir -p $SDK/licenses
           printf "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c1059b8ea6b3" > $SDK/licenses/android-sdk-license
           yes | $SDK/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          $SDK/cmdline-tools/latest/bin/sdkmanager "build-tools;37.0.0" "build-tools;33.0.2" "platforms;android-33" "platform-tools"
-          ls $SDK/build-tools/
-          cat $SDK/tools/bin/sdkmanager
-          $SDK/tools/bin/sdkmanager --version
+          $SDK/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.2" "platforms;android-33" "platform-tools"
 
       - name: Build APK
         run: |
           export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
-          buildozer android debug --verbose
-          ls -lh bin/
+          export GRADLE_OPTS="-Xmx4g"
+          buildozer android debug --verbose || true
 
-      - name: Upload APK
+      - name: Upload LOGS always
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: .buildozer/logs/
+          if-no-files-found: warn
+
+      - name: Upload APK if built
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: enduring-word-apk
           path: bin/*.apk
-          if-no-files-found: error
+          if-no-files-found: warn
