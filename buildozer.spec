@@ -20,9 +20,7 @@ log_level = 2
 warn_on_root = 1
 
 [app:android]
-# --- FIX FOR YOUR PHONE TECNO arm7a ---
 archs = armeabi-v7a
-# --- FIX FOR Aidl not found ERROR FROM SCREENSHOT ---
 android.api = 33
 android.minapi = 21
 android.ndk = 25b
@@ -31,8 +29,6 @@ android.buildtools_version = 33.0.2
 android.accept_sdk_license_agreement = True
 android.ant_path = /usr/bin/ant
 android.permissions = INTERNET
-android.allow_backup = True
-# ---------------------------------------
 
 [buildozer:state]
 cache.buildozer = %(appdir)s/.buildozer
