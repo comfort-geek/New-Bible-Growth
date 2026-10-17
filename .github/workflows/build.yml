@@ -3,37 +3,26 @@ on: [push, workflow_dispatch]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    container:
-      image: kivy/buildozer:latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y python3-pip openjdk-17-jdk zip unzip wget curl autoconf automake libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+          pip install --upgrade pip
+          pip install buildozer cython virtualenv
+
       - name: Download DB
         run: |
-          apt-get update -y
-          apt-get install -y wget curl
           curl -L -o enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
-
-      - name: CLEAN BROKEN SDK CACHE - Fixes your screenshot error 46-47
-        run: |
-          rm -rf /github/home/.buildozer
-          rm -rf /home/user/.buildozer/android/platform/android-sdk
-          rm -rf .buildozer
-          echo "Cache cleaned"
-
-      - name: Patch root check + licenses
-        run: |
-          sed -i "1a import buildozer; buildozer.Buildozer.check_root = lambda self: True" /home/user/.venv/bin/buildozer
-          mkdir -p /home/user/.buildozer/android/platform/android-sdk/licenses
-          mkdir -p /github/home/.buildozer/android/platform/android-sdk/licenses
-          printf "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c1059b8ea6b3" > /home/user/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          cp /home/user/.buildozer/android/platform/android-sdk/licenses/android-sdk-license /github/home/.buildozer/android/platform/android-sdk/licenses/ || true
-          mkdir -p /github/home/.buildozer/android/platform/android-sdk/tools/bin
-          # Create symlink so buildozer finds sdkmanager in old location
-          ln -sf /home/user/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager /github/home/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager 2>/dev/null || true
-          ln -sf /home/user/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager /home/user/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager 2>/dev/null || true
-          yes | sdkmanager --licenses || true
+          ls -lh enduring_word_full.db
 
       - name: Build APK
         run: |
