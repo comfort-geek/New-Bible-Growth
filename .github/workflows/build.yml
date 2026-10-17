@@ -1,4 +1,4 @@
-name: Build APK 50MB AUTO-DETECT
+name: Build APK 50MB FINAL SYMLINK FIX
 
 on:
   push:
@@ -27,49 +27,38 @@ jobs:
           sudo apt-get install -y aidl ant
           pip install buildozer==1.5.0 cython==0.29.33
 
-      - name: AUTO-FIX BUILD-TOOLS + LICENSE - WORKS ON NEW IMAGE
+      - name: THE FIX - Symlink system SDK to where Buildozer expects it
         run: |
-          echo "=== What build-tools does this runner have? ==="
           ls /usr/local/lib/android/sdk/build-tools/
-          
-          echo "=== What NDK does this runner have? ==="
           ls /usr/local/lib/android/sdk/ndk/
           
-          # Pick the newest build-tools automatically
-          LATEST_BT=$(ls /usr/local/lib/android/sdk/build-tools/ | sort -V | tail -n1)
-          LATEST_NDK=$(ls /usr/local/lib/android/sdk/ndk/ | sort -V | tail -n1)
-          echo "LATEST_BT=$LATEST_BT" >> $GITHUB_ENV
-          echo "LATEST_NDK=$LATEST_NDK" >> $GITHUB_ENV
-          echo "Found Build-Tools: $LATEST_BT"
-          echo "Found NDK: $LATEST_NDK"
+          # DELETE Buildozer's empty SDK and LINK system SDK
+          rm -rf ~/.buildozer/android/platform/android-sdk
+          mkdir -p ~/.buildozer/android/platform/
+          ln -s /usr/local/lib/android/sdk ~/.buildozer/android/platform/android-sdk
           
-          # Copy ALL build-tools to Buildozer folder
-          mkdir -p ~/.buildozer/android/platform/android-sdk/build-tools
-          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-          cp -r /usr/local/lib/android/sdk/build-tools/* ~/.buildozer/android/platform/android-sdk/build-tools/
+          # FIX NDK - Link system NDK as r28c so Buildozer doesn't download 600MB
+          rm -rf ~/.buildozer/android/platform/android-ndk-r28c
+          ln -s /usr/local/lib/android/sdk/ndk/27.3.13750724 ~/.buildozer/android/platform/android-ndk-r28c || ln -s /usr/local/lib/android/sdk/ndk/26.3.11579264 ~/.buildozer/android/platform/android-ndk-r28c || ln -s $(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n1) ~/.buildozer/android/platform/android-ndk-r28c
           
-          # Copy licenses
-          cp -r /usr/local/lib/android/sdk/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || true
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "24333f8a63b6825ea9c5514f83c4501b4f66a136d" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          # Pre-clone p4a v2023.11.22 so it doesn't clone master (master needs Build-Tools 37 license)
+          rm -rf .buildozer/android/platform/python-for-android
+          mkdir -p .buildozer/android/platform/
+          git clone -b v2023.11.22 --single-branch https://github.com/kivy/python-for-android.git .buildozer/android/platform/python-for-android
           
-          # Also copy platforms
-          mkdir -p ~/.buildozer/android/platform/android-sdk/platforms
-          cp -r /usr/local/lib/android/sdk/platforms/android-33 ~/.buildozer/android/platform/android-sdk/platforms/ 2>/dev/null || cp -r /usr/local/lib/android/sdk/platforms/android-34 ~/.buildozer/android/platform/android-sdk/platforms/ || true
-          
+          # Verify
+          ls -l ~/.buildozer/android/platform/android-sdk/tools/bin/ || ls -l ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/
           ls ~/.buildozer/android/platform/android-sdk/build-tools/
+          ls ~/.buildozer/android/platform/
 
       - name: Download DB
         run: wget -O enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
 
-      - name: Build APK - Uses auto-detected SDK
-        run: |
-          echo "Using Build-Tools $LATEST_BT and NDK $LATEST_NDK"
-          buildozer android debug
+      - name: Build APK
+        run: buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-AUTO-FIXED
+          name: EnduringWord-FINAL-FIXED
           path: bin/*.apk
