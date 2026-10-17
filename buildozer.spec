@@ -14,16 +14,14 @@ log_level = 2
 
 [app:android]
 archs = armeabi-v7a
-android.api = 33
+android.api = 34
 android.minapi = 21
-android.ndk = 27c
-android.sdk_path = /usr/local/lib/android/sdk
-android.ndk_path = /usr/local/lib/android/sdk/ndk/27.3.13750724
 android.accept_sdk_license_agreement = True
 android.permissions = INTERNET
 p4a.branch = v2023.11.22
-# THIS LINE FIXES YOUR SCREENSHOT - Forces 33.0.2 not 37.0.0
-android.build_tools_version = 33.0.2
+android.build_tools_version = 34.0.0
+android.sdk_path = /usr/local/lib/android/sdk
+android.ndk_path = /usr/local/lib/android/sdk/ndk/26.3.11579264
 
 [buildozer:state]
 cache.buildozer = %(appdir)s/.buildozer
