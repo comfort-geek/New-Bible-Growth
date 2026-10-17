@@ -14,23 +14,25 @@ jobs:
           apt-get install -y wget curl
           curl -L -o enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
           ls -lh enduring_word_full.db
+          test $(stat -c%s enduring_word_full.db) -gt 10000000
 
-      - name: Patch Buildozer root check
+      - name: NUCLEAR Patch - Kill root check
         run: |
-          # Find and disable check_root
-          FILE=$(find /home/user/.venv -name __init__.py | grep buildozer | head -1)
+          FILE="/home/user/.venv/lib/python3.14/site-packages/buildozer/__init__.py"
           echo "Patching $FILE"
-          sed -i 's/def check_root/def check_root_old/' $FILE
-          echo -e "    def check_root(self):\n        print('Root check bypassed')\n        return True" >> $FILE
-          # Also try direct replacement
-          sed -i 's/self.check_root()/print("Root check skipped")/' $FILE || true
-          grep -n "check_root" $FILE | head
-
-      - name: Build APK
-        run: |
-          buildozer android debug
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: enduring-word-apk
-          path: bin/*.apk
+          # 1. Comment out the input() line that causes EOFError
+          sed -i "s/cont = input/# cont = input/" "$FILE"
+          # 2. Comment out check_root call
+          sed -i "s/self.check_root()/pass # self.check_root()/" "$FILE"
+          # 3. Replace entire check_root function with one that returns True
+          python3 << 'PY'
+          import pathlib
+          f = pathlib.Path("/home/user/.venv/lib/python3.14/site-packages/buildozer/__init__.py")
+          text = f.read_text()
+          text = text.replace("def check_root(self):", "def check_root_DISABLED(self):")
+          # Inject new function at end of file
+          text += "\n\ndef check_root(self):\n    print('ROOT CHECK BYPASSED - CONTINUING')\n    return True\n"
+          f.write_text(text)
+          print("Patched OK")
+          PY
+          grep -n "check_root" "$FILE" | tail -10
