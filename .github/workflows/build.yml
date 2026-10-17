@@ -1,4 +1,4 @@
-name: Build APK for arm7a - CLEAN
+name: Build APK DEFINITIVE FIX
 
 on:
   push:
@@ -10,53 +10,46 @@ jobs:
     runs-on: ubuntu-22.04
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install dependencies + AIDL + Licenses
+      - name: Definitive Android Fix
         run: |
           sudo apt update
-          sudo apt install -y python3-pip openjdk-17-jdk zip unzip git wget aidl
-          mkdir -p ~/.android/licenses
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.android/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.android/licenses/android-sdk-license
-          echo "24333f8a63b6825ea9c5514f83c4501b4f66a136d" >> ~/.android/licenses/android-sdk-license
-          echo "y" > ~/.android/licenses/android-sdk-preview-license
+          sudo apt install -y python3-pip openjdk-17-jdk zip unzip git wget aidl ant
+          
+          # 1. Accept licenses in ALL 3 possible locations
+          for dir in ~/.android/licenses $ANDROID_HOME/licenses ~/.buildozer/android/platform/android-sdk/licenses /home/runner/.buildozer/android/platform/android-sdk/licenses; do
+            mkdir -p $dir
+            echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $dir/android-sdk-license
+            echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> $dir/android-sdk-license
+            echo "24333f8a63b6825ea9c5514f83c4501b4f66a136d" >> $dir/android-sdk-license
+          done
+          
+          # 2. Accept via sdkmanager and INSTALL BOTH 33.0.2 and 37.0.0
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.2" "build-tools;37.0.0" "platforms;android-33" || true
+          
           pip install --upgrade pip
           pip install buildozer cython==0.29.33
 
-      - name: Download DB - 73.45 MB
+      - name: Download DB
         run: |
           wget -O enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
           ls -lh enduring_word_full.db
-          echo "DB size:"
-          du -h enduring_word_full.db
 
-      - name: Clean old build
+      - name: Clean
         run: |
-          rm -rf .buildozer
-          rm -rf ~/.buildozer
+          rm -rf bin .buildozer
           rm -f settings.gradle
-          rm -rf bin
-          mkdir -p bin
 
-      - name: Build APK arm7a DEBUG
-        run: |
-          buildozer android debug
+      - name: Build
+        run: buildozer android debug
 
-      - name: Check APK
-        run: |
-          ls -lh bin/
-          du -h bin/*.apk
-
-      - name: Upload APK arm7a
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-arm7a-73MB
+          name: EnduringWord-arm7a-FINAL-FIX
           path: bin/*.apk
-          retention-days: 14
