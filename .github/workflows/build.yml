@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,10 +18,14 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Install system deps + AIDL + Licenses
         run: |
           sudo apt update
-          sudo apt install -y python3-pip openjdk-17-jdk zip unzip git wget
+          sudo apt install -y python3-pip openjdk-17-jdk zip unzip git wget aidl
+          mkdir -p ~/.android/licenses
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.android/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.android/licenses/android-sdk-license
+          echo "24333f8a63b6825ea9c5514f83c4501b4f66a136d" >> ~/.android/licenses/android-sdk-license
           pip install --upgrade pip
           pip install buildozer cython==0.29.33
 
@@ -40,6 +45,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: enduring-word-arm7a-73MB
+          name: enduring-word-arm7a-73MB-FIXED
           path: bin/*.apk
           retention-days: 7
