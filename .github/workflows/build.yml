@@ -8,17 +8,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download 70MB DB
+      - name: Download 70MB DB from Internet Archive
         run: |
-          wget -O enduring_word_full.db "https://github.com/comfort-geek/New-Bible-Growth/releases/download/V1.2/enduring_word_full.db"
+          apt-get update -y
+          apt-get install -y wget curl
+          curl -L -o enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
           ls -lh enduring_word_full.db
+          test $(stat -c%s enduring_word_full.db) -gt 10000000
 
-      - name: Build APK with Docker Buildozer
+      - name: Build APK
         run: |
           buildozer android debug
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: enduring-word-apk
           path: bin/*.apk
