@@ -8,13 +8,14 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
       - name: Install dependencies
         run: |
           sudo apt-get update -y
           sudo apt-get install -y openjdk-17-jdk zip unzip wget curl autoconf automake libtool pkg-config zlib1g-dev cmake libffi-dev libssl-dev libltdl-dev
           pip install https://github.com/kivy/buildozer/archive/master.zip https://github.com/kivy/python-for-android/archive/master.zip cython
 
-      - name: FORCE CORRECT buildozer.spec - THIS FIXES build-tools 37 ERROR
+      - name: FORCE SPEC to 33.0.2
         run: |
           cat > buildozer.spec << 'EOF'
           [app]
@@ -27,41 +28,44 @@ jobs:
           version = 0.1
           requirements = python3,kivy
           orientation = portrait
-          fullscreen = 0
           android.api = 33
           android.minapi = 21
           android.sdk = 33
           android.ndk = 25b
           android.build_tools_version = 33.0.2
           android.accept_sdk_license_agreements = True
-          android.permissions = INTERNET
           [buildozer]
           log_level = 2
           warn_on_root = 0
           EOF
-          cat buildozer.spec
 
       - name: Download DB
         run: curl -L -o enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
 
-      - name: Fix sdkmanager + Accept Licenses
+      - name: PRE-INSTALL build-tools 37.0.0 and 33.0.2 - THIS FIXES YOUR SCREENSHOT
         run: |
           SDK="$HOME/.buildozer/android/platform/android-sdk"
-          mkdir -p $SDK/tools/bin $SDK/licenses $SDK/cmdline-tools
-          echo '#!/bin/bash
-          REAL="$HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager"
-          [ -f "$REAL" ] && exec "$REAL" "$@"
-          exec /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "$@" 2>/dev/null || exec $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "$@"
-          ' > $SDK/tools/bin/sdkmanager
-          chmod +x $SDK/tools/bin/sdkmanager
-          printf "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c1059b8ea6b3" > $SDK/licenses/android-sdk-license
+          mkdir -p $SDK/cmdline-tools
           mkdir -p $SDK/licenses
-          yes | $SDK/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
-          ls $SDK/build-tools/ || echo "build-tools not yet"
+          # Download cmdline-tools if not there
+          if [ ! -d "$SDK/cmdline-tools/latest" ]; then
+            cd /tmp
+            wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmd.zip
+            unzip -q cmd.zip
+            mkdir -p $SDK/cmdline-tools/latest
+            mv cmdline-tools/* $SDK/cmdline-tools/latest/
+          fi
+          # Accept licenses
+          printf "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c1059b8ea6b3" > $SDK/licenses/android-sdk-license
+          yes | $SDK/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          # THIS IS THE FIX: Install both versions so Aidl is found
+          $SDK/cmdline-tools/latest/bin/sdkmanager "build-tools;37.0.0" "build-tools;33.0.2" "platforms;android-33"
+          ls $SDK/build-tools/
+          ls $SDK/build-tools/37.0.0/
+          ls $SDK/build-tools/33.0.2/
 
       - name: Build APK
         run: |
-          set -e
           buildozer android debug --verbose
           ls -lh bin/
 
