@@ -1,4 +1,4 @@
-name: Build APK 50MB FINAL SYMLINK FIX
+name: Build APK 50MB WORKING NOW
 
 on:
   push:
@@ -27,29 +27,27 @@ jobs:
           sudo apt-get install -y aidl ant
           pip install buildozer==1.5.0 cython==0.29.33
 
-      - name: THE FIX - Symlink system SDK to where Buildozer expects it
+      - name: SYMLINK SYSTEM SDK - NO DOWNLOAD
         run: |
+          echo "Runner has:"
           ls /usr/local/lib/android/sdk/build-tools/
           ls /usr/local/lib/android/sdk/ndk/
           
-          # DELETE Buildozer's empty SDK and LINK system SDK
           rm -rf ~/.buildozer/android/platform/android-sdk
           mkdir -p ~/.buildozer/android/platform/
           ln -s /usr/local/lib/android/sdk ~/.buildozer/android/platform/android-sdk
           
-          # FIX NDK - Link system NDK as r28c so Buildozer doesn't download 600MB
+          # Link NDK 28c to system NDK 30 so it doesn't download 600MB
           rm -rf ~/.buildozer/android/platform/android-ndk-r28c
-          ln -s /usr/local/lib/android/sdk/ndk/27.3.13750724 ~/.buildozer/android/platform/android-ndk-r28c || ln -s /usr/local/lib/android/sdk/ndk/26.3.11579264 ~/.buildozer/android/platform/android-ndk-r28c || ln -s $(ls -d /usr/local/lib/android/sdk/ndk/* | tail -n1) ~/.buildozer/android/platform/android-ndk-r28c
+          ln -s /usr/local/lib/android/sdk/ndk/30.0.16248370 ~/.buildozer/android/platform/android-ndk-r28c
           
-          # Pre-clone p4a v2023.11.22 so it doesn't clone master (master needs Build-Tools 37 license)
-          rm -rf .buildozer/android/platform/python-for-android
-          mkdir -p .buildozer/android/platform/
-          git clone -b v2023.11.22 --single-branch https://github.com/kivy/python-for-android.git .buildozer/android/platform/python-for-android
+          # Accept ALL licenses
+          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
+          cp /usr/local/lib/android/sdk/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || true
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
           
-          # Verify
-          ls -l ~/.buildozer/android/platform/android-sdk/tools/bin/ || ls -l ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/
           ls ~/.buildozer/android/platform/android-sdk/build-tools/
-          ls ~/.buildozer/android/platform/
+          ls -l ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager
 
       - name: Download DB
         run: wget -O enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
@@ -60,5 +58,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-FINAL-FIXED
+          name: EnduringWord-FIXED
           path: bin/*.apk
