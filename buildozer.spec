@@ -8,15 +8,17 @@ source.include_patterns = enduring_word_full.db
 version = 1.0
 requirements = python3,kivy
 orientation = portrait
+
 [buildozer]
 log_level = 2
+
 [app:android]
 archs = armeabi-v7a
 android.api = 33
 android.minapi = 21
-android.ndk = 25b
+android.ndk = 28c
 android.accept_sdk_license_agreement = True
 android.permissions = INTERNET
-android.ant_path = /usr/bin/ant
+
 [buildozer:state]
 cache.buildozer = %(appdir)s/.buildozer
