@@ -1,53 +1,71 @@
-- name: Set up Java 17 - REQUIRED FOR SDKMANAGER
-  uses: actions/setup-java@v4
-  with:
-    distribution: 'temurin'
-    java-version: '17'
+name: Build APK FINAL JAVA17 FIX
 
-- name: Set up Python 3.10
-  uses: actions/setup-python@v5
-  with:
-    python-version: '3.10'
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
 
-- name: Install system deps
-  run: |
-    sudo apt-get update
-    sudo apt-get install -y wget unzip zip git lib32z1 libncurses5 libstdc++6
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    env:
+      ANDROID_SDK_ROOT: /opt/android-sdk
+      ANDROID_HOME: /opt/android-sdk
+      PATH: ${{ env.PATH }}:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools
 
-- name: Install Android command-line tools + SDK packages
-  run: |
-    mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-    wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
-    unzip -q cmdline-tools.zip -d cmdline-tools-tmp
-    mkdir -p $ANDROID_SDK_ROOT/cmdline-tools/latest
-    mv cmdline-tools-tmp/cmdline-tools/* $ANDROID_SDK_ROOT/cmdline-tools/latest/
-    rm -rf cmdline-tools.zip cmdline-tools-tmp
-    yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_SDK_ROOT} --licenses || true
-    $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_SDK_ROOT} "platform-tools" "platforms;android-31" "build-tools;33.0.2" "ndk;21.4.7075529"
+    steps:
+      - uses: actions/checkout@v4
 
-- name: Install Python deps (buildozer)
-  run: |
-    python -m pip install --upgrade pip
-    pip install buildozer==1.5.0 cython==0.29.33
+      - name: Set up Java 17 - REQUIRED FOR SDKMANAGER
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-- name: Download DB 73MB
-  run: |
-    wget -O enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
-    ls -lh enduring_word_full.db
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-- name: Clean EVERYTHING - No old sdkmanager
-  run: |
-    rm -rf ~/.buildozer
-    rm -rf .buildozer
-    rm -rf bin
-    rm -f settings.gradle
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget unzip zip git lib32z1 libncurses5 libstdc++6
 
-- name: Build APK
-  run: |
-    buildozer android debug
+      - name: Install Android command-line tools + SDK packages
+        run: |
+          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
+          unzip -q cmdline-tools.zip -d cmdline-tools-tmp
+          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools/latest
+          mv cmdline-tools-tmp/cmdline-tools/* $ANDROID_SDK_ROOT/cmdline-tools/latest/
+          rm -rf cmdline-tools.zip cmdline-tools-tmp
+          yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_SDK_ROOT} --licenses || true
+          $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_SDK_ROOT} "platform-tools" "platforms;android-31" "build-tools;33.0.2" "ndk;21.4.7075529"
 
-- name: Upload
-  uses: actions/upload-artifact@v4
-  with:
-    name: EnduringWord-arm7a-JAVA17
-    path: bin/*.apk
+      - name: Install Python deps (buildozer)
+        run: |
+          python -m pip install --upgrade pip
+          pip install buildozer==1.5.0 cython==0.29.33
+
+      - name: Download DB 73MB
+        run: |
+          wget -O enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
+          ls -lh enduring_word_full.db
+
+      - name: Clean EVERYTHING - No old sdkmanager
+        run: |
+          rm -rf ~/.buildozer
+          rm -rf .buildozer
+          rm -rf bin
+          rm -f settings.gradle
+
+      - name: Build APK
+        run: |
+          buildozer android debug
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: EnduringWord-arm7a-JAVA17
+          path: bin/*.apk
