@@ -1,30 +1,28 @@
 name: Build APK
 on: [push, workflow_dispatch]
+
 jobs:
   build:
     runs-on: ubuntu-22.04
-    env:
-      JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Check Java 17
-        run: java -version
-
-      - name: Install deps
+      - name: Install dependencies
         run: |
           sudo apt-get update -y
           sudo apt-get install -y zip unzip wget curl autoconf automake libtool pkg-config zlib1g-dev cmake libffi-dev libssl-dev libltdl-dev libsqlite3-dev
           pip install buildozer cython
 
-      - name: FORCE SPEC
+      - name: FORCE buildozer.spec
         run: |
           cat > buildozer.spec << 'EOF'
           [app]
@@ -43,14 +41,18 @@ jobs:
           android.accept_sdk_license_agreements = True
           android.permissions = INTERNET
           p4a.branch = master
+
           [buildozer]
-          log_level = 2
+          log_level = 1
           EOF
+          cat buildozer.spec
 
       - name: Download DB
-        run: curl -L -o enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db" && ls -lh *.db
+        run: |
+          curl -L -o enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
+          ls -lh *.db
 
-      - name: PRE-INSTALL SDK
+      - name: PRE-INSTALL SDK 33
         run: |
           SDK="$HOME/.buildozer/android/platform/android-sdk"
           mkdir -p $SDK/cmdline-tools
@@ -58,7 +60,7 @@ jobs:
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmd.zip
           unzip -q cmd.zip
           mkdir -p $SDK/cmdline-tools/latest
-          mv cmdline-tools/* $SDK/cmdline-tools/latest/ || mv cmdline-tools-*/latest/* $SDK/cmdline-tools/latest/ 2>/dev/null || true
+          mv cmdline-tools/* $SDK/cmdline-tools/latest/ 2>/dev/null || mv cmdline-tools-*/latest/* $SDK/cmdline-tools/latest/ 2>/dev/null || true
           mkdir -p $SDK/tools/bin
           echo '#!/bin/bash
           export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
@@ -74,20 +76,17 @@ jobs:
         run: |
           export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
           export GRADLE_OPTS="-Xmx4g"
-          buildozer android debug --verbose || true
+          buildozer android debug
 
-      - name: Upload LOGS always
+      - name: Find APK
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: .buildozer/logs/
-          if-no-files-found: warn
+        run: find . -name "*.apk" -type f -exec ls -lh {} \;
 
-      - name: Upload APK if built
+      - name: Upload APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: enduring-word-apk
-          path: bin/*.apk
-          if-no-files-found: warn
+          path: |
+            bin/
+            **/*.apk
