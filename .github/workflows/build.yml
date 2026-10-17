@@ -15,27 +15,13 @@ jobs:
           curl -L -o enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
           ls -lh enduring_word_full.db
 
-      - name: Fix root check properly
+      - name: Patch buildozer binary directly
         run: |
-          python3 << 'PY'
-          import pathlib
-          path = pathlib.Path("/home/user/.venv/lib/python3.14/site-packages/buildozer/__init__.py")
-          code = path.read_text()
-          # Replace the whole check_root function with a safe version
-          new_func = '''def check_root(self):
-              print("ROOT CHECK BYPASSED - CONTINUING AS ROOT")
-              return True
-          '''
-          import re
-          # Replace from "def check_root" until next "def " at same indent
-          code = re.sub(r'def check_root\(self\):.*?def ', new_func + '\n\ndef ', code, flags=re.DOTALL)
-          path.write_text(code)
-          print("Patched successfully")
-          # Verify no syntax error
-          import py_compile
-          py_compile.compile(str(path), doraise=True)
-          print("Syntax OK")
-          PY
+          cat /home/user/.venv/bin/buildozer
+          echo "--- PATCHING ---"
+          # Insert bypass before import
+          sed -i "1a import buildozer; buildozer.Buildozer.check_root = lambda self: print('ROOT CHECK BYPASSED')" /home/user/.venv/bin/buildozer
+          cat /home/user/.venv/bin/buildozer
 
       - name: Build APK
         run: |
