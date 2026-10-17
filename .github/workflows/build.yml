@@ -1,4 +1,4 @@
-name: Build APK 50MB FINAL FIX
+name: Build APK 50MB AUTO-DETECT
 
 on:
   push:
@@ -21,36 +21,55 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install only buildozer + aidl (50MB)
+      - name: Install buildozer + aidl
         run: |
           sudo apt-get update -y
           sudo apt-get install -y aidl ant
           pip install buildozer==1.5.0 cython==0.29.33
-          which aidl
-          echo "aidl installed OK"
 
-      - name: FIX LICENSE + AIDL ERROR
+      - name: AUTO-FIX BUILD-TOOLS + LICENSE - WORKS ON NEW IMAGE
         run: |
+          echo "=== What build-tools does this runner have? ==="
+          ls /usr/local/lib/android/sdk/build-tools/
+          
+          echo "=== What NDK does this runner have? ==="
+          ls /usr/local/lib/android/sdk/ndk/
+          
+          # Pick the newest build-tools automatically
+          LATEST_BT=$(ls /usr/local/lib/android/sdk/build-tools/ | sort -V | tail -n1)
+          LATEST_NDK=$(ls /usr/local/lib/android/sdk/ndk/ | sort -V | tail -n1)
+          echo "LATEST_BT=$LATEST_BT" >> $GITHUB_ENV
+          echo "LATEST_NDK=$LATEST_NDK" >> $GITHUB_ENV
+          echo "Found Build-Tools: $LATEST_BT"
+          echo "Found NDK: $LATEST_NDK"
+          
+          # Copy ALL build-tools to Buildozer folder
           mkdir -p ~/.buildozer/android/platform/android-sdk/build-tools
           mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-          cp -r /usr/local/lib/android/sdk/build-tools/33.0.2 ~/.buildozer/android/platform/android-sdk/build-tools/ || true
-          cp -r /usr/local/lib/android/sdk/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/ || true
+          cp -r /usr/local/lib/android/sdk/build-tools/* ~/.buildozer/android/platform/android-sdk/build-tools/
+          
+          # Copy licenses
+          cp -r /usr/local/lib/android/sdk/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || true
           echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
           echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
           echo "24333f8a63b6825ea9c5514f83c4501b4f66a136d" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          ls ~/.buildozer/android/platform/android-sdk/build-tools/33.0.2/
+          
+          # Also copy platforms
+          mkdir -p ~/.buildozer/android/platform/android-sdk/platforms
+          cp -r /usr/local/lib/android/sdk/platforms/android-33 ~/.buildozer/android/platform/android-sdk/platforms/ 2>/dev/null || cp -r /usr/local/lib/android/sdk/platforms/android-34 ~/.buildozer/android/platform/android-sdk/platforms/ || true
+          
+          ls ~/.buildozer/android/platform/android-sdk/build-tools/
 
       - name: Download DB
         run: wget -O enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
 
-      - name: Clean bin only
-        run: rm -rf bin .buildozer/android/app .buildozer/android/platform/python-for-android
-
-      - name: Build APK
-        run: buildozer android debug
+      - name: Build APK - Uses auto-detected SDK
+        run: |
+          echo "Using Build-Tools $LATEST_BT and NDK $LATEST_NDK"
+          buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-50MB-FIXED
+          name: EnduringWord-AUTO-FIXED
           path: bin/*.apk
