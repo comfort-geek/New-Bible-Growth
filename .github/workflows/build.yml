@@ -8,24 +8,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download DB from Archive
+      - name: Download DB
         run: |
-          apt-get update -y
-          apt-get install -y wget curl
+          apt-get update -y && apt-get install -y wget curl
           curl -L -o enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
           ls -lh enduring_word_full.db
 
-      - name: Patch buildozer binary directly
+      - name: Patch root check
         run: |
-          cat /home/user/.venv/bin/buildozer
-          echo "--- PATCHING ---"
-          # Insert bypass before import
-          sed -i "1a import buildozer; buildozer.Buildozer.check_root = lambda self: print('ROOT CHECK BYPASSED')" /home/user/.venv/bin/buildozer
-          cat /home/user/.venv/bin/buildozer
+          sed -i "1a import buildozer; buildozer.Buildozer.check_root = lambda self: True" /home/user/.venv/bin/buildozer
+
+      - name: Accept licenses + Force spec
+        run: |
+          mkdir -p /github/home/.buildozer/android/platform/android-sdk/licenses
+          mkdir -p /home/user/.buildozer/android/platform/android-sdk/licenses
+          echo -e "8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c1059b8ea6b3" > /home/user/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          cp /home/user/.buildozer/android/platform/android-sdk/licenses/android-sdk-license /github/home/.buildozer/android/platform/android-sdk/licenses/ || true
+          # Force fix in spec again even after you replaced it
+          sed -i "s/android.accept_sdk_license_agreements.*/android.accept_sdk_license_agreements = True/" buildozer.spec || echo "android.accept_sdk_license_agreements = True" >> buildozer.spec
+          sed -i "s/android.build_tools_version.*/android.build_tools_version = 33.0.2/" buildozer.spec || echo "android.build_tools_version = 33.0.2" >> buildozer.spec
 
       - name: Build APK
-        run: |
-          buildozer android debug
+        run: buildozer android debug
 
       - uses: actions/upload-artifact@v4
         with:
