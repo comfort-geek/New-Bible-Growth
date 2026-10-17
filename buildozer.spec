@@ -8,9 +8,6 @@ source.include_exts = py,png,jpg,kv,atlas,db
 source.include_patterns = enduring_word_full.db
 
 version = 1.0
-version.regex = __version__ = ['"]([^'"]*)['"]
-version.filename = %(source.dir)s/main.py
-
 requirements = python3,kivy
 orientation = portrait
 fullscreen = 0
