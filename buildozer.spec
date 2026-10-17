@@ -22,6 +22,8 @@ android.ndk_path = /usr/local/lib/android/sdk/ndk/27.3.13750724
 android.accept_sdk_license_agreement = True
 android.permissions = INTERNET
 p4a.branch = v2023.11.22
+# THIS LINE FIXES YOUR SCREENSHOT - Forces 33.0.2 not 37.0.0
+android.build_tools_version = 33.0.2
 
 [buildozer:state]
 cache.buildozer = %(appdir)s/.buildozer
