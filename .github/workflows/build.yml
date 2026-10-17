@@ -1,4 +1,4 @@
-name: Build APK 50MB ZERO DOWNLOAD
+name: Build APK 50MB FINAL FIX
 
 on:
   push:
@@ -21,32 +21,44 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Check pre-installed SDK - NO DOWNLOAD NEEDED
-        run: |
-          ls /usr/local/lib/android/sdk/build-tools/ | head -20
-          ls /usr/local/lib/android/sdk/ndk/ | head -10
-          echo "Using system SDK - 0 MB download"
-          du -sh /usr/local/lib/android/sdk/build-tools/33.0.2 || true
-
       - name: Install only buildozer + aidl (50MB)
         run: |
           sudo apt-get update -y
           sudo apt-get install -y aidl ant
           pip install buildozer==1.5.0 cython==0.29.33
+          aidl --version
+          which aidl
+
+      - name: FIX LICENSE + AIDL ERROR FROM YOUR SCREENSHOT
+        run: |
+          # 1. Create Buildozer SDK folder BEFORE Buildozer starts
+          mkdir -p ~/.buildozer/android/platform/android-sdk/build-tools
+          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
+          
+          # 2. COPY build-tools 33.0.2 FROM SYSTEM SDK (0 MB download)
+          cp -r /usr/local/lib/android/sdk/build-tools/33.0.2 ~/.buildozer/android/platform/android-sdk/build-tools/ || true
+          ls ~/.buildozer/android/platform/android-sdk/build-tools/
+          
+          # 3. ACCEPT ALL LICENSES - This fixes line 948 in your screenshot
+          cp -r /usr/local/lib/android/sdk/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/ || true
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "24333f8a63b6825ea9c5514f83c4501b4f66a136d" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          
+          # 4. Make sure aidl is executable
+          ls /home/runner/.buildozer/android/platform/android-sdk/build-tools/33.0.2/aidl
 
       - name: Download DB
-        run: |
-          wget -O enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
-          ls -lh enduring_word_full.db
+        run: wget -O enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
 
-      - name: Clean
-        run: rm -rf .buildozer bin
+      - name: Clean bin only
+        run: rm -rf bin .buildozer/android/app .buildozer/android/platform/python-for-android
 
-      - name: Build APK - Uses System SDK
+      - name: Build APK
         run: buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: EnduringWord-50MB
+          name: EnduringWord-50MB-FIXED
           path: bin/*.apk
