@@ -1,4 +1,4 @@
-name: Build APK 50MB WORKING NOW
+name: Build APK 50MB FINAL
 
 on:
   push:
@@ -27,27 +27,23 @@ jobs:
           sudo apt-get install -y aidl ant
           pip install buildozer==1.5.0 cython==0.29.33
 
-      - name: SYMLINK SYSTEM SDK - NO DOWNLOAD
+      - name: FIX SDK + NDK + sdkmanager path
         run: |
-          echo "Runner has:"
-          ls /usr/local/lib/android/sdk/build-tools/
-          ls /usr/local/lib/android/sdk/ndk/
-          
           rm -rf ~/.buildozer/android/platform/android-sdk
           mkdir -p ~/.buildozer/android/platform/
           ln -s /usr/local/lib/android/sdk ~/.buildozer/android/platform/android-sdk
           
-          # Link NDK 28c to system NDK 30 so it doesn't download 600MB
           rm -rf ~/.buildozer/android/platform/android-ndk-r28c
           ln -s /usr/local/lib/android/sdk/ndk/30.0.16248370 ~/.buildozer/android/platform/android-ndk-r28c
           
-          # Accept ALL licenses
-          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-          cp /usr/local/lib/android/sdk/licenses/* ~/.buildozer/android/platform/android-sdk/licenses/ 2>/dev/null || true
+          mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
+          ln -sf /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+          ln -sf /usr/local/lib/android/sdk/cmdline-tools/latest/bin/avdmanager ~/.buildozer/android/platform/android-sdk/tools/bin/avdmanager || true
+          
           yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
           
-          ls ~/.buildozer/android/platform/android-sdk/build-tools/
-          ls -l ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager
+          ls -l ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+          ls ~/.buildozer/android/platform/android-sdk/build-tools/ | head -10
 
       - name: Download DB
         run: wget -O enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
