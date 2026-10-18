@@ -6,15 +6,16 @@ import android.util.TypedValue
 import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
-import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.math.abs
 
 class MainActivity : AppCompatActivity() {
+
+    private val otBooks = listOf("Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalms","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi")
+    private val ntBooks = listOf("Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation")
 
     private val bookCh = mapOf(
         "Genesis" to 50, "Exodus" to 40, "Leviticus" to 27, "Numbers" to 36, "Deuteronomy" to 34,
@@ -33,94 +34,45 @@ class MainActivity : AppCompatActivity() {
         "2 Peter" to 3, "1 John" to 5, "2 John" to 1, "3 John" to 1, "Jude" to 1, "Revelation" to 22
     )
 
-    private var curBook = "Genesis"
-    private var curChapter = 1
-    private var curChCount = 50
-    private var mode = 0
-
-    private lateinit var header: TextView
-    private lateinit var root: LinearLayout
-    private lateinit var scroll: ScrollView
-    private lateinit var dbFile: File
-    private lateinit var gestureDetector: GestureDetector
+    private var curBook = "Genesis"; private var curChapter = 1; private var curChCount = 50; private var mode = 0
+    private lateinit var header: TextView; private lateinit var root: LinearLayout; private lateinit var scroll: ScrollView
+    private lateinit var dbFile: File; private lateinit var gestureDetector: GestureDetector
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xFFF8F6F1.toInt())
-        }
-
-        val top = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xFF111827.toInt())
-            setPadding(dp(16), dp(28), dp(16), dp(16))
-        }
-        header = TextView(this).apply {
-            text = "Bible Commentary"
-            setTextColor(0xFFFFFFFF.toInt())
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-            gravity = Gravity.CENTER
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-        }
+        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(0xFFF8F6F1.toInt()) }
+        val top = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(0xFF111827.toInt()); setPadding(dp(16), dp(28), dp(16), dp(16)) }
+        header = TextView(this).apply { text = "Bible Commentary"; setTextColor(0xFFFFFFFF.toInt()); setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f); gravity = Gravity.CENTER; setTypeface(typeface, android.graphics.Typeface.BOLD) }
         top.addView(header)
-
         scroll = ScrollView(this)
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(12), dp(12), dp(12))
-        }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12)) }
         scroll.addView(content)
-        root.addView(top)
-        root.addView(scroll)
-        setContentView(root)
+        root.addView(top); root.addView(scroll); setContentView(root)
 
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
-                if (e1 == null) return false
-                val dx = e2.x - e1.x
-                if (abs(dx) > 100 && abs(vx) > 100) {
-                    if (dx < 0) nextChapter() else prevChapter()
-                    return true
-                }
+                if (e1 == null) return false; val dx = e2.x - e1.x
+                if (abs(dx) > 100 && abs(vx) > 100) { if (dx < 0) nextChapter() else prevChapter(); return true }
                 return false
             }
         })
-
         scroll.setOnTouchListener { _, e -> gestureDetector.onTouchEvent(e); false }
         content.setOnTouchListener { _, e -> gestureDetector.onTouchEvent(e); false }
 
-        // FIX FOR CODE 14: Create databases folder
         dbFile = getDatabasePath("commentary.db")
         dbFile.parentFile?.mkdirs()
-
-        // Try to copy from assets if not exists
-        if (!dbFile.exists()) {
-            copyDbFromAssets()
-        }
-
-        if (!dbFile.exists()) {
-            header.text = "DB not found - add commentary.db to assets"
-            showBooks(content)
-            return
-        }
-
+        if (!dbFile.exists()) copyDbFromAssets()
+        if (!dbFile.exists()) { header.text = "DB not found"; showBooks(content); return }
         cleanDatabaseOnFirstInstall(dbFile)
         showBooks(content)
     }
 
     private fun copyDbFromAssets() {
         try {
-            // Try different asset locations
-            val possible = listOf("commentary.db", "databases/commentary.db", "databases\\commentary.db")
+            val possible = listOf("commentary.db", "databases/commentary.db")
             for (name in possible) {
                 try {
-                    assets.open(name).use { input ->
-                        FileOutputStream(dbFile).use { output ->
-                            input.copyTo(output)
-                        }
-                    }
+                    assets.open(name).use { input -> FileOutputStream(dbFile).use { output -> input.copyTo(output) } }
                     if (dbFile.exists() && dbFile.length() > 0) return
                 } catch (_: Exception) {}
             }
@@ -140,60 +92,50 @@ class MainActivity : AppCompatActivity() {
                     db.execSQL("UPDATE $table SET commentary = REPLACE(REPLACE(REPLACE(commentary,'&#8217;',''''),'&#8220;','\"'),'&#8221;','\"')")
                 } catch (_: Exception) {}
             }
-            cur.close()
-            db.close()
+            cur.close(); db.close()
             prefs.edit().putBoolean("db_cleaned_v4", true).apply()
         } catch (_: Exception) {}
     }
 
-    private fun showBooks(container: LinearLayout? = null) {
-        mode = 0
-        val c = container ?: (scroll.getChildAt(0) as LinearLayout)
-        c.removeAllViews()
-        header.text = "Bible Commentary"
-        val grid = GridLayout(this).apply { columnCount = 2 }
-        bookCh.keys.forEach { book ->
-            val card = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setBackgroundColor(0xFFFFFFFF.toInt())
-                setPadding(dp(12), dp(12), dp(12), dp(12))
-                val lp = GridLayout.LayoutParams().apply {
-                    width = 0; height = GridLayout.LayoutParams.WRAP_CONTENT
-                    columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-                    setMargins(dp(6), dp(6), dp(6), dp(6))
-                }
-                layoutParams = lp
-                isClickable = true
-                setOnClickListener {
-                    curBook = book; curChCount = bookCh[book] ?: 50; showChapters()
-                }
-            }
-            val tv = TextView(this).apply { text = book; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f) }
-            val sub = TextView(this).apply { text = "${bookCh[book]} ch"; setTextColor(0xFF6B7280.toInt()); setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f) }
-            card.addView(tv); card.addView(sub); grid.addView(card)
+    private fun sectionTitle(text: String): TextView {
+        return TextView(this).apply {
+            this.text = text; setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f); setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(0xFF111827.toInt()); setPadding(dp(6), dp(18), dp(6), dp(6))
         }
-        c.addView(grid)
+    }
+
+    private fun makeGrid(books: List<String>): GridLayout {
+        val grid = GridLayout(this).apply { columnCount = 2 }
+        books.forEach { book ->
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL; setBackgroundColor(0xFFFFFFFF.toInt()); setPadding(dp(12), dp(12), dp(12), dp(12))
+                val lp = GridLayout.LayoutParams().apply { width = 0; height = GridLayout.LayoutParams.WRAP_CONTENT; columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f); setMargins(dp(6), dp(6), dp(6), dp(6)) }
+                layoutParams = lp; isClickable = true; setOnClickListener { curBook = book; curChCount = bookCh[book] ?: 50; showChapters() }
+            }
+            card.addView(TextView(this).apply { text = book; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f) })
+            card.addView(TextView(this).apply { text = "${bookCh[book]} ch"; setTextColor(0xFF6B7280.toInt()); setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f) })
+            grid.addView(card)
+        }
+        return grid
+    }
+
+    private fun showBooks(container: LinearLayout? = null) {
+        mode = 0; val c = container ?: (scroll.getChildAt(0) as LinearLayout); c.removeAllViews(); header.text = "Bible Commentary"
+        c.addView(sectionTitle("OLD TESTAMENT"))
+        c.addView(makeGrid(otBooks))
+        c.addView(sectionTitle("NEW TESTAMENT"))
+        c.addView(makeGrid(ntBooks))
     }
 
     private fun showChapters() {
-        mode = 1
-        val c = scroll.getChildAt(0) as LinearLayout
-        c.removeAllViews()
-        header.text = curBook
+        mode = 1; val c = scroll.getChildAt(0) as LinearLayout; c.removeAllViews(); header.text = curBook
         val grid = GridLayout(this).apply { columnCount = 4 }
         for (i in 1..curChCount) {
             val card = TextView(this).apply {
-                text = i.toString(); gravity = Gravity.CENTER
-                setBackgroundColor(0xFFFFFFFF.toInt()); setPadding(dp(12), dp(16), dp(12), dp(16))
+                text = i.toString(); gravity = Gravity.CENTER; setBackgroundColor(0xFFFFFFFF.toInt()); setPadding(dp(12), dp(16), dp(12), dp(16))
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
-                val lp = GridLayout.LayoutParams().apply {
-                    width = 0; height = GridLayout.LayoutParams.WRAP_CONTENT
-                    columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-                    setMargins(dp(6), dp(6), dp(6), dp(6))
-                }
-                layoutParams = lp
-                isClickable = true
-                setOnClickListener { curChapter = i; showReading() }
+                val lp = GridLayout.LayoutParams().apply { width = 0; height = GridLayout.LayoutParams.WRAP_CONTENT; columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f); setMargins(dp(6), dp(6), dp(6), dp(6)) }
+                layoutParams = lp; isClickable = true; setOnClickListener { curChapter = i; showReading() }
             }
             grid.addView(card)
         }
@@ -201,21 +143,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showReading() {
-        mode = 2
-        val c = scroll.getChildAt(0) as LinearLayout
-        c.removeAllViews()
-        // NO SWIPE TEXT - FIXED AS YOU ASKED
+        mode = 2; val c = scroll.getChildAt(0) as LinearLayout; c.removeAllViews()
         header.text = "$curBook $curChapter"
-
-        val title = TextView(this).apply {
-            text = "$curBook $curChapter"; setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
-            setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(0, dp(8), 0, dp(12))
-        }
-        val body = TextView(this).apply {
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f); setLineSpacing(dp(4).toFloat(), 1.2f)
-        }
+        val title = TextView(this).apply { text = "$curBook $curChapter"; setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f); setTypeface(typeface, android.graphics.Typeface.BOLD); setPadding(0, dp(8), 0, dp(12)) }
+        val body = TextView(this).apply { setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f); setLineSpacing(dp(4).toFloat(), 1.2f) }
         c.addView(title); c.addView(body)
-
         try {
             val db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
             var txt = "Commentary not found for $curBook $curChapter"
@@ -229,27 +161,11 @@ class MainActivity : AppCompatActivity() {
             }
             db.close()
             body.text = txt.replace(Regex("<[^>]*>"), "")
-        } catch (e: Exception) {
-            body.text = "Error: ${e.message}"
-        }
+        } catch (e: Exception) { body.text = "Error: ${e.message}" }
     }
 
-    private fun nextChapter() {
-        if (mode != 2) return
-        if (curChapter < curChCount) { curChapter++; showReading() }
-    }
-    private fun prevChapter() {
-        if (mode != 2) return
-        if (curChapter > 1) { curChapter--; showReading() }
-    }
-
-    override fun onBackPressed() {
-        when (mode) {
-            2 -> showChapters()
-            1 -> showBooks()
-            else -> super.onBackPressed()
-        }
-    }
-
+    private fun nextChapter() { if (mode != 2) return; if (curChapter < curChCount) { curChapter++; showReading() } }
+    private fun prevChapter() { if (mode != 2) return; if (curChapter > 1) { curChapter--; showReading() } }
+    override fun onBackPressed() { when (mode) { 2 -> showChapters(); 1 -> showBooks(); else -> super.onBackPressed() } }
     private fun dp(v: Int): Int = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), resources.displayMetrics).toInt()
 }
