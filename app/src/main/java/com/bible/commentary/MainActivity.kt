@@ -3,14 +3,16 @@ package com.bible.commentary
 import android.database.sqlite.SQLiteDatabase
 import android.os.Bundle
 import android.util.TypedValue
-import android.view.GestureDetector
 import android.view.Gravity
-import android.view.MotionEvent
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import java.io.File
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlin.math.abs
+import android.view.GestureDetector
+import android.view.MotionEvent
 
 class MainActivity : AppCompatActivity() {
 
@@ -37,6 +39,8 @@ class MainActivity : AppCompatActivity() {
     private var curBook = "Genesis"; private var curChapter = 1; private var curChCount = 50; private var mode = 0
     private lateinit var header: TextView; private lateinit var root: LinearLayout; private lateinit var scroll: ScrollView
     private lateinit var dbFile: File; private lateinit var gestureDetector: GestureDetector
+    private var allTables: List<String> = emptyList()
+    private val DB_URL = "https://archive.org/download/commentary_202610/commentary.db"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,47 +65,78 @@ class MainActivity : AppCompatActivity() {
 
         dbFile = getDatabasePath("commentary.db")
         dbFile.parentFile?.mkdirs()
-        if (!dbFile.exists()) copyDbFromAssets()
-        if (!dbFile.exists()) { header.text = "DB not found"; showBooks(content); return }
-        cleanDatabaseOnFirstInstall(dbFile)
+
+        if (!dbFile.exists() || dbFile.length() < 1000000) {
+            downloadDB(content)
+        } else {
+            loadDB(content)
+        }
+    }
+
+    private fun downloadDB(content: LinearLayout) {
+        content.removeAllViews()
+        header.text = "Downloading..."
+        val tv = TextView(this).apply { text = "Downloading commentary database (40.2 MB)...\nPlease wait, first time only.\n\n0%"; setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f); setPadding(dp(16),dp(16),dp(16),dp(16)) }
+        val pb = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
+        content.addView(tv); content.addView(pb)
+
+        Thread {
+            try {
+                val url = URL(DB_URL)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connect()
+                val total = conn.contentLength
+                val input = conn.inputStream
+                val output = FileOutputStream(dbFile)
+                val buffer = ByteArray(8192)
+                var read: Int
+                var downloaded = 0
+                while (input.read(buffer).also { read = it } != -1) {
+                    output.write(buffer, 0, read)
+                    downloaded += read
+                    val percent = if (total > 0) (downloaded * 100 / total) else 0
+                    runOnUiThread {
+                        pb.progress = percent
+                        tv.text = "Downloading commentary database (40.2 MB)...\nPlease wait, first time only.\n\n$percent% - ${downloaded/1024/1024} MB"
+                    }
+                }
+                output.close(); input.close()
+                runOnUiThread { loadDB(content) }
+            } catch (e: Exception) {
+                runOnUiThread { tv.text = "Download failed: ${e.message}\n\nURL: $DB_URL\n\nCheck internet and restart app.\n\nError: ${e.stackTraceToString().take(500)}" }
+            }
+        }.start()
+    }
+
+    private fun loadDB(content: LinearLayout) {
+        try {
+            val db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
+            val cur = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'", null)
+            val list = mutableListOf<String>()
+            while (cur.moveToNext()) list.add(cur.getString(0))
+            cur.close(); db.close()
+            allTables = list
+        } catch (_: Exception) {}
+        cleanDatabaseOnFirstInstall()
         showBooks(content)
     }
 
-    private fun copyDbFromAssets() {
-        try {
-            val possible = listOf("commentary.db", "databases/commentary.db")
-            for (name in possible) {
-                try {
-                    assets.open(name).use { input -> FileOutputStream(dbFile).use { output -> input.copyTo(output) } }
-                    if (dbFile.exists() && dbFile.length() > 0) return
-                } catch (_: Exception) {}
-            }
-        } catch (_: Exception) {}
-    }
-
-    private fun cleanDatabaseOnFirstInstall(file: File) {
+    private fun cleanDatabaseOnFirstInstall() {
         val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-        if (prefs.getBoolean("db_cleaned_v4", false)) return
+        if (prefs.getBoolean("db_cleaned_v5", false)) return
         try {
-            val db = SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READWRITE)
-            val cur = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'", null)
-            while (cur.moveToNext()) {
-                val table = cur.getString(0)
-                try {
-                    db.execSQL("UPDATE $table SET commentary = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(commentary,'â€“','–'),'â€™','''),'â€œ','\"'),'â€','\"'),'â€˜','''')")
-                    db.execSQL("UPDATE $table SET commentary = REPLACE(REPLACE(REPLACE(commentary,'&#8217;',''''),'&#8220;','\"'),'&#8221;','\"')")
-                } catch (_: Exception) {}
+            val db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE)
+            for (table in allTables) {
+                try { db.execSQL("UPDATE $table SET commentary = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(commentary,'â€“','–'),'â€™','''),'â€œ','\"'),'â€','\"'),'â€˜','''')") } catch (_: Exception) {}
+                try { db.execSQL("UPDATE $table SET text = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(text,'â€“','–'),'â€™','''),'â€œ','\"'),'â€','\"'),'â€˜','''')") } catch (_: Exception) {}
             }
-            cur.close(); db.close()
-            prefs.edit().putBoolean("db_cleaned_v4", true).apply()
+            db.close()
+            prefs.edit().putBoolean("db_cleaned_v5", true).apply()
         } catch (_: Exception) {}
     }
 
     private fun sectionTitle(text: String): TextView {
-        return TextView(this).apply {
-            this.text = text; setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f); setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(0xFF111827.toInt()); setPadding(dp(6), dp(18), dp(6), dp(6))
-        }
+        return TextView(this).apply { this.text = text; setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f); setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(0xFF111827.toInt()); setPadding(dp(6), dp(18), dp(6), dp(6)) }
     }
 
     private fun makeGrid(books: List<String>): GridLayout {
@@ -121,10 +156,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun showBooks(container: LinearLayout? = null) {
         mode = 0; val c = container ?: (scroll.getChildAt(0) as LinearLayout); c.removeAllViews(); header.text = "Bible Commentary"
-        c.addView(sectionTitle("OLD TESTAMENT"))
-        c.addView(makeGrid(otBooks))
-        c.addView(sectionTitle("NEW TESTAMENT"))
-        c.addView(makeGrid(ntBooks))
+        c.addView(sectionTitle("OLD TESTAMENT")); c.addView(makeGrid(otBooks))
+        c.addView(sectionTitle("NEW TESTAMENT")); c.addView(makeGrid(ntBooks))
     }
 
     private fun showChapters() {
@@ -132,8 +165,7 @@ class MainActivity : AppCompatActivity() {
         val grid = GridLayout(this).apply { columnCount = 4 }
         for (i in 1..curChCount) {
             val card = TextView(this).apply {
-                text = i.toString(); gravity = Gravity.CENTER; setBackgroundColor(0xFFFFFFFF.toInt()); setPadding(dp(12), dp(16), dp(12), dp(16))
-                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                text = i.toString(); gravity = Gravity.CENTER; setBackgroundColor(0xFFFFFFFF.toInt()); setPadding(dp(12), dp(16), dp(12), dp(16)); setTypeface(typeface, android.graphics.Typeface.BOLD)
                 val lp = GridLayout.LayoutParams().apply { width = 0; height = GridLayout.LayoutParams.WRAP_CONTENT; columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f); setMargins(dp(6), dp(6), dp(6), dp(6)) }
                 layoutParams = lp; isClickable = true; setOnClickListener { curChapter = i; showReading() }
             }
@@ -150,17 +182,46 @@ class MainActivity : AppCompatActivity() {
         c.addView(title); c.addView(body)
         try {
             val db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
-            var txt = "Commentary not found for $curBook $curChapter"
-            val tables = listOf(curBook.replace(" ", ""), curBook, curBook.lowercase(), "commentary")
-            for (t in tables) {
+            var txt: String? = null
+            for (table in allTables) {
+                if (txt != null) break
                 try {
-                    val cur = db.rawQuery("SELECT commentary FROM $t WHERE chapter=? LIMIT 1", arrayOf(curChapter.toString()))
-                    if (cur.moveToFirst()) { txt = cur.getString(0); cur.close(); break }
-                    cur.close()
+                    val colsCur = db.rawQuery("PRAGMA table_info($table)", null)
+                    val cols = mutableListOf<String>()
+                    while (colsCur.moveToNext()) cols.add(colsCur.getString(1).lowercase())
+                    colsCur.close()
+                    val textCol = when { cols.contains("commentary") -> "commentary" else -> if (cols.contains("text")) "text" else if (cols.contains("content")) "content" else cols.firstOrNull() ?: continue }
+                    val bookCol = cols.find { it == "book" || it == "book_name" }
+                    val chapCol = cols.find { it == "chapter" || it == "ch" || it == "chapter_number" }
+                    if (bookCol != null && chapCol != null) {
+                        val cur = db.rawQuery("SELECT $textCol FROM $table WHERE $bookCol=? AND $chapCol=? LIMIT 1", arrayOf(curBook, curChapter.toString()))
+                        if (cur.moveToFirst()) txt = cur.getString(0)
+                        cur.close()
+                        if (txt == null) {
+                            val cur2 = db.rawQuery("SELECT $textCol FROM $table WHERE $bookCol=? AND $chapCol=? LIMIT 1", arrayOf(curBook.lowercase(), curChapter.toString()))
+                            if (cur2.moveToFirst()) txt = cur2.getString(0)
+                            cur2.close()
+                        }
+                    } else if (table.equals(curBook.replace(" ",""), ignoreCase = true)) {
+                        if (chapCol != null) {
+                            val cur = db.rawQuery("SELECT $textCol FROM $table WHERE $chapCol=? LIMIT 1", arrayOf(curChapter.toString()))
+                            if (cur.moveToFirst()) txt = cur.getString(0)
+                            cur.close()
+                        }
+                    }
                 } catch (_: Exception) {}
             }
+            if (txt == null) {
+                for (t in listOf(curBook.replace(" ",""), curBook)) {
+                    try {
+                        val cur = db.rawQuery("SELECT commentary FROM $t WHERE chapter=? LIMIT 1", arrayOf(curChapter.toString()))
+                        if (cur.moveToFirst()) { txt = cur.getString(0); cur.close(); break }
+                        cur.close()
+                    } catch (_: Exception) {}
+                }
+            }
             db.close()
-            body.text = txt.replace(Regex("<[^>]*>"), "")
+            body.text = (txt ?: "Commentary not found for $curBook $curChapter\nTables: ${allTables.joinToString(", ")}").replace(Regex("<[^>]*>"), "")
         } catch (e: Exception) { body.text = "Error: ${e.message}" }
     }
 
