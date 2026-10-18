@@ -12,13 +12,11 @@ jobs:
 
       - name: Fix icons and manifest
         run: |
-          # 1. Delete broken mipmap folders
-          rm -rf app/src/main/res/mipmap-*
-          # 2. Fix AndroidManifest to use system icon
-          sed -i 's/@mipmap\/ic_launcher/@android:mipmap\/sym_def_app_icon/g' app/src/main/AndroidManifest.xml
-          sed -i 's/@mipmap\/ic_launcher_round/@android:mipmap\/sym_def_app_icon/g' app/src/main/AndroidManifest.xml
-          cat app/src/main/AndroidManifest.xml | grep icon
-          echo "Manifest fixed!"
+          rm -rf app/src/main/res/mipmap-* || true
+          sed -i 's/@mipmap\/ic_launcher/@android:mipmap\/sym_def_app_icon/g' app/src/main/AndroidManifest.xml || true
+          sed -i 's/@mipmap\/ic_launcher_round/@android:mipmap\/sym_def_app_icon/g' app/src/main/AndroidManifest.xml || true
+          sed -i 's/@mipmap\/ic_launcher/@android:mipmap\/sym_def_app_icon/g' app/src/main/res/values/*.xml || true
+          echo "Fixed"
 
       - name: Build APK
         run: gradle assembleRelease --no-daemon
