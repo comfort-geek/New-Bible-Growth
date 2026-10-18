@@ -9,11 +9,13 @@ jobs:
         with: 
           distribution: 'temurin'
           java-version: '17'
+      - name: Clean old gradle
+        run: rm -rf gradle .gradle gradlew gradlew.bat
       - name: Build APK
         run: |
-          gradle wrapper --gradle-version 8.2
+          gradle wrapper --gradle-version 8.0
           chmod +x gradlew
-          ./gradlew assembleRelease --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with: 
