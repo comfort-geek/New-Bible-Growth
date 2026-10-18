@@ -3,16 +3,13 @@ package com.bible.commentary
 import android.database.sqlite.SQLiteDatabase
 import android.os.Bundle
 import android.util.TypedValue
-import android.view.GestureDetector
 import android.view.Gravity
-import android.view.MotionEvent
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.math.abs
 
 class MainActivity : AppCompatActivity() {
 
@@ -36,37 +33,145 @@ class MainActivity : AppCompatActivity() {
         "2 Peter" to 3, "1 John" to 5, "2 John" to 1, "3 John" to 1, "Jude" to 1, "Revelation" to 22
     )
 
-    private var curBook = "Genesis"; private var curChapter = 1; private var curChCount = 50; private var mode = 0
+    private var curBook = "Genesis"
+    private var curChapter = 1
+    private var curChCount = 50
+    private var mode = 0
     private lateinit var scroll: ScrollView
-    private lateinit var dbFile: File; private lateinit var gestureDetector: GestureDetector
+    private lateinit var content: LinearLayout
+    private lateinit var dbFile: File
     private var allTables: List<String> = emptyList()
     private val DB_URL = "https://archive.org/download/commentary_202610/commentary.db"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(0xFFF8F6F1.toInt()) }
+        val root = LinearLayout(this)
+        root.orientation = LinearLayout.VERTICAL
+        root.setBackgroundColor(0xFFF8F6F1.toInt())
         scroll = ScrollView(this)
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(12), dp(12), dp(12)) }
+        content = LinearLayout(this)
+        content.orientation = LinearLayout.VERTICAL
+        content.setPadding(dp(12), dp(12), dp(12), dp(12))
         scroll.addView(content)
         root.addView(scroll)
         setContentView(root)
 
-        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
-                if (e1 == null) return false; val dx = e2.x - e1.x
-                if (abs(dx) > 100 && abs(vx) > 100) { if (dx < 0) nextChapter() else prevChapter(); return true }
-                return false
-            }
-        })
-        scroll.setOnTouchListener { _, e -> gestureDetector.onTouchEvent(e); false }
-        content.setOnTouchListener { _, e -> gestureDetector.onTouchEvent(e); false }
-
         dbFile = getDatabasePath("commentary.db")
         dbFile.parentFile?.mkdirs()
 
-        if (!dbFile.exists() || dbFile.length() < 1000000) downloadDB(content) else loadDB(content)
+        if (!dbFile.exists() || dbFile.length() < 1000000) {
+            downloadDB()
+        } else {
+            loadDB()
+        }
     }
 
-    private fun downloadDB(content: LinearLayout) {
+    private fun downloadDB() {
         content.removeAllViews()
-        val tv = Text
+        val tv = TextView(this)
+        tv.text = "Downloading commentary (40.2 MB)...\nFirst time only.\n\n0%"
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+        tv.setPadding(dp(16), dp(32), dp(16), dp(16))
+        val pb = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal)
+        pb.max = 100
+        content.addView(tv)
+        content.addView(pb)
+        Thread {
+            try {
+                val url = URL(DB_URL)
+                val conn = url.openConnection() as HttpURLConnection
+                conn.connect()
+                val total = conn.contentLength
+                val input = conn.inputStream
+                val output = FileOutputStream(dbFile)
+                val buffer = ByteArray(8192)
+                var read: Int
+                var downloaded = 0
+                while (input.read(buffer).also { read = it } != -1) {
+                    output.write(buffer, 0, read)
+                    downloaded += read
+                    val percent = if (total > 0) (downloaded * 100 / total) else 0
+                    runOnUiThread {
+                        pb.progress = percent
+                        tv.text = "Downloading commentary (40.2 MB)...\nFirst time only.\n\n$percent% - ${downloaded/1024/1024} MB"
+                    }
+                }
+                output.close()
+                input.close()
+                runOnUiThread { loadDB() }
+            } catch (e: Exception) {
+                runOnUiThread { tv.text = "Download failed: ${e.message}" }
+            }
+        }.start()
+    }
+
+    private fun loadDB() {
+        try {
+            val db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
+            val cur = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table'", null)
+            val list = mutableListOf<String>()
+            while (cur.moveToNext()) list.add(cur.getString(0))
+            cur.close()
+            db.close()
+            allTables = list
+        } catch (_: Exception) {}
+        showBooks()
+    }
+
+    private fun sectionTitle(text: String): TextView {
+        val t = TextView(this)
+        t.text = text
+        t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
+        t.setTypeface(t.typeface, android.graphics.Typeface.BOLD)
+        t.setTextColor(0xFF111827.toInt())
+        t.setPadding(dp(6), dp(22), dp(6), dp(6))
+        return t
+    }
+
+    private fun makeGrid(books: List<String>): GridLayout {
+        val grid = GridLayout(this)
+        grid.columnCount = 2
+        for (book in books) {
+            val card = LinearLayout(this)
+            card.orientation = LinearLayout.VERTICAL
+            card.setBackgroundColor(0xFFFFFFFF.toInt())
+            card.setPadding(dp(14), dp(14), dp(14), dp(14))
+            val lp = GridLayout.LayoutParams()
+            lp.width = 0
+            lp.height = GridLayout.LayoutParams.WRAP_CONTENT
+            lp.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+            lp.setMargins(dp(6), dp(6), dp(6), dp(6))
+            card.layoutParams = lp
+            card.isClickable = true
+            card.setOnClickListener {
+                curBook = book
+                curChCount = bookCh[book] ?: 50
+                showChapters()
+            }
+            val tv = TextView(this)
+            tv.text = "$book ${bookCh[book]} Chapters"
+            tv.setTypeface(tv.typeface, android.graphics.Typeface.BOLD)
+            tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            card.addView(tv)
+            grid.addView(card)
+        }
+        return grid
+    }
+
+    private fun showBooks() {
+        mode = 0
+        content.removeAllViews()
+        content.addView(sectionTitle("OLD TESTAMENT"))
+        content.addView(makeGrid(otBooks))
+        content.addView(sectionTitle("NEW TESTAMENT"))
+        content.addView(makeGrid(ntBooks))
+    }
+
+    private fun showChapters() {
+        mode = 1
+        content.removeAllViews()
+        val backTitle = TextView(this)
+        backTitle.text = curBook
+        backTitle.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+        backTitle.setTypeface(backTitle.typeface, android.graphics.Typeface.BOLD)
+        backTitle.setPadding(0
