@@ -1,130 +1,115 @@
-from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
-from kivy.uix.label import Label
-from kivy.uix.scrollview import ScrollView
-from kivy.uix.gridlayout import GridLayout
-from kivy.core.window import Window
-from kivy.uix.screenmanager import ScreenManager, Screen
-import sqlite3
+main.py - Enduring Word Offline App
+
+This app is designed to stay under 10MB. It does NOT bundle the database. On first installation/launch, it downloads the database from Internet Archive once to local app storage, then works completely offline.
+
+Source Code
+
 import os
+import sys
+import sqlite3
+import requests
+from pathlib import Path
 
-Window.softinput_mode = "below_target"
+# CONFIG
+DB_URL = "https://archive.org/download/enduring_word_full/enduring_word_full.db"
+DB_NAME = "enduring_word_full.db"
 
-# --- FIXED DB PATH FOR ANDROID ARM7A ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "enduring_word_full.db")
-# ---------------------------------------
+def get_db_path():
+    """Get persistent storage path for all platforms"""
+    if sys.platform == "win32":
+        base = Path(os.getenv("APPDATA", Path.home())) / "EnduringWord"
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support" / "EnduringWord"
+    else:
+        base = Path.home() / ".local" / "share" / "EnduringWord"
+    
+    base.mkdir(parents=True, exist_ok=True)
+    return base / DB_NAME
 
-BOOKS = ["Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalms","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi","Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation"]
+DB_PATH = get_db_path()
 
-class BookScreen(Screen):
-    def on_enter(self):
-        self.clear_widgets()
-        layout = BoxLayout(orientation='vertical')
-        layout.add_widget(Label(text="Enduring Word - Offline", size_hint_y=None, height=60, font_size='22sp', bold=True))
-        scroll = ScrollView()
-        grid = GridLayout(cols=1, spacing=5, padding=10, size_hint_y=None)
-        grid.bind(minimum_height=grid.setter('height'))
-        for idx, book in enumerate(BOOKS):
-            btn = Button(text=book, size_hint_y=None, height=55, font_size='18sp')
-            btn.bind(on_press=lambda x, b=book, i=idx+1: self.open_book(b, i))
-            grid.add_widget(btn)
-        scroll.add_widget(grid)
-        layout.add_widget(scroll)
-        self.add_widget(layout)
-    def open_book(self, book_name, book_num):
-        app = App.get_running_app()
-        app.current_book = book_name
-        app.current_book_num = book_num
-        app.root.current = 'chapter'
+def download_db():
+    """Download only once - check if exists and valid"""
+    if DB_PATH.exists() and DB_PATH.stat().st_size > 1024*1024:
+        print(f"DB already exists: {DB_PATH}")
+        return str(DB_PATH)
 
-class ChapterScreen(Screen):
-    def on_enter(self):
-        self.clear_widgets()
-        app = App.get_running_app()
-        layout = BoxLayout(orientation='vertical')
-        top = BoxLayout(size_hint_y=None, height=60)
-        back = Button(text="< Books", size_hint_x=None, width=100, font_size='16sp')
-        back.bind(on_press=lambda x: setattr(app.root, 'current', 'book'))
-        top.add_widget(back)
-        top.add_widget(Label(text=app.current_book, font_size='20sp', bold=True))
-        layout.add_widget(top)
-        scroll = ScrollView()
-        grid = GridLayout(cols=5, spacing=5, padding=10, size_hint_y=None)
-        grid.bind(minimum_height=grid.setter('height'))
-        max_ch = 50
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            cur = conn.cursor()
-            cur.execute("SELECT MAX(chapter) FROM commentary WHERE book_number=?", (app.current_book_num,))
-            r = cur.fetchone()
-            if r and r[0]: max_ch = r[0]
-            conn.close()
-        except: pass
-        if max_ch > 150: max_ch = 150
-        for ch in range(1, max_ch+1):
-            btn = Button(text=str(ch), size_hint_y=None, height=55, font_size='18sp')
-            btn.bind(on_press=lambda x, c=ch: self.open_chapter(c))
-            grid.add_widget(btn)
-        scroll.add_widget(grid)
-        layout.add_widget(scroll)
-        self.add_widget(layout)
-    def open_chapter(self, ch):
-        app = App.get_running_app()
-        app.current_chapter = ch
-        app.root.current = 'commentary'
+    print(f"First-time setup: Downloading commentary DB...")
+    print(f"From: {DB_URL}")
+    print(f"To: {DB_PATH}")
 
-class CommentaryScreen(Screen):
-    def on_enter(self):
-        self.clear_widgets()
-        app = App.get_running_app()
-        layout = BoxLayout(orientation='vertical')
-        top = BoxLayout(size_hint_y=None, height=60)
-        back = Button(text="< Chapters", size_hint_x=None, width=120, font_size='16sp')
-        back.bind(on_press=lambda x: setattr(app.root, 'current', 'chapter'))
-        top.add_widget(back)
-        top.add_widget(Label(text=f"{app.current_book} {app.current_chapter}", font_size='18sp', bold=True))
-        layout.add_widget(top)
-        scroll = ScrollView()
-        content_box = BoxLayout(orientation='vertical', size_hint_y=None, padding=15, spacing=15)
-        content_box.bind(minimum_height=content_box.setter('height'))
-        try:
-            conn = sqlite3.connect(DB_PATH)
-            cur = conn.cursor()
-            commentary_text = ""
-            try:
-                cur.execute("SELECT commentary FROM commentary WHERE book_number=? AND chapter=? ORDER BY verse", (app.current_book_num, app.current_chapter))
-                rows = cur.fetchall()
-                for row in rows:
-                    commentary_text += str(row[0]) + "\n\n"
-            except:
-                cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                tables = cur.fetchall()
-                commentary_text = f"No commentary for this chapter. Tables: {tables}"
-            conn.close()
-            if not commentary_text.strip():
-                commentary_text = f"No commentary found. DB exists: {os.path.exists(DB_PATH)} Path: {DB_PATH}"
-            lbl = Label(text=commentary_text, font_size='19sp', text_size=(Window.width - 30, None), size_hint_y=None, halign='left', valign='top')
-            lbl.bind(texture_size=lambda instance, value: setattr(instance, 'height', value[1]))
-            content_box.add_widget(lbl)
-        except Exception as e:
-            err_lbl = Label(text=f"Error: {e}\nPath: {DB_PATH}\nExists: {os.path.exists(DB_PATH)}", font_size='16sp', text_size=(Window.width - 30, None), size_hint_y=None)
-            err_lbl.bind(texture_size=lambda instance, value: setattr(instance, 'height', value[1]))
-            content_box.add_widget(err_lbl)
-        scroll.add_widget(content_box)
-        layout.add_widget(scroll)
-        self.add_widget(layout)
+    try:
+        with requests.get(DB_URL, stream=True, timeout=600) as r:
+            r.raise_for_status()
+            total = int(r.headers.get('content-length', 0))
+            downloaded = 0
+            with open(DB_PATH, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1024*256):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total:
+                            print(f"\rDownloading: {downloaded/1024/1024:.1f}MB / {total/1024/1024:.1f}MB ({downloaded*100//total}%)", end='')
+            print(f"\nDownload complete!")
+            return str(DB_PATH)
+    except Exception as e:
+        print(f"Download failed: {e}")
+        if DB_PATH.exists():
+            DB_PATH.unlink()
+        sys.exit(1)
 
-class EnduringWordApp(App):
-    def build(self):
-        self.current_book = "Genesis"
-        self.current_book_num = 1
-        self.current_chapter = 1
-        sm = ScreenManager()
-        sm.add_widget(BookScreen(name='book'))
-        sm.add_widget(ChapterScreen(name='chapter'))
-        sm.add_widget(CommentaryScreen(name='commentary'))
-        return sm
+def get_commentary(book, chapter, verse):
+    """Example offline query - adapt table name to your DB"""
+    conn = sqlite3.connect(str(DB_PATH))
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT * FROM commentary WHERE book=? AND chapter=? AND verse=?",
+            (book, chapter, verse)
+        )
+        result = cursor.fetchall()
+        return result
+    except Exception as e:
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table'")
+        print("DB Schema:", cursor.fetchall())
+        raise e
+    finally:
+        conn.close()
 
-EnduringWordApp().run()
+if __name__ == "__main__":
+    db_file = download_db()
+    print("\nTesting offline access...")
+    conn = sqlite3.connect(db_file)
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = cur.fetchall()
+    print(f"Tables found: {tables}")
+    conn.close()
+    print(f"\nApp is ready. DB will work offline from: {db_file}")
+
+How to keep app <10MB
+
+1. requirements.txt should only contain: requests
+2. Do NOT commit the .db file to GitHub
+3. Build with: pyinstaller --onefile --noconsole --name="EnduringWord" app.py
+4. App will download DB on first launch to AppData/.local/share and work offline
+5. For GitHub Actions, use the build.yml provided earlier.
+
+GitHub Workflow (.github/workflows/build.yml)
+
+name: Build App
+on: [push]
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt pyinstaller
+      - run: pyinstaller --onefile --noconsole --name="EnduringWord" app.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EnduringWord-App
+          path: dist/
