@@ -5,7 +5,6 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.text.Html
 import android.util.Log
-import android.view.Gravity
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import java.io.File
@@ -24,34 +23,25 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // ---- Real UI Built in Code (no R needed) ----
         mainLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xFFFAFAFA.toInt())
         }
-
         titleView = TextView(this).apply {
             text = "Enduring Word Commentary"
             textSize = 20f
             setTypeface(null, Typeface.BOLD)
             setPadding(24, 32, 24, 16)
-            setBackgroundColor(0xFF1A237E.toInt())
-            setTextColor(0xFFFFFFFF.toInt())
         }
-
         contentView = TextView(this).apply {
-            text = "Loading database..."
+            text = "Loading..."
             textSize = 16f
             setPadding(24, 24, 24, 24)
             visibility = TextView.GONE
         }
-
         listView = ListView(this)
-
         mainLayout.addView(titleView)
         mainLayout.addView(contentView)
         mainLayout.addView(listView, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT)
-
         setContentView(mainLayout)
 
         dbFile = File(getDatabasePath("commentary.db").path)
@@ -60,11 +50,10 @@ class MainActivity : AppCompatActivity() {
         if (!file.exists()) {
             titleView.text = "DB not found"
             contentView.visibility = TextView.VISIBLE
-            contentView.text = "Put commentary.db in:\n/data/data/com.bible.commentary/databases/"
+            contentView.text = "Put commentary.db in databases folder"
             return
         }
 
-        // Clean DB + then show books
         Thread {
             val isNewClean = cleanDatabaseOnFirstInstall(file)
             runOnUiThread {
@@ -87,7 +76,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showChapters(book: String) {
-        // get chapter count from DB
         val chapters = getChapterCount(book)
         val nums = (1..chapters).map { "Chapter $it" }
         titleView.text = "$book - $chapters Chapters"
@@ -96,7 +84,6 @@ class MainActivity : AppCompatActivity() {
         listView.setOnItemClickListener { _, _, pos, _ ->
             showCommentary(book, pos+1)
         }
-        // back button
         titleView.setOnClickListener { showBooks() }
     }
 
@@ -105,13 +92,8 @@ class MainActivity : AppCompatActivity() {
         contentView.visibility = TextView.VISIBLE
         titleView.text = "$book $chapter"
         titleView.setOnClickListener { showChapters(book) }
-        
         val text = getCommentary(book, chapter)
-        contentView.text = if (android.os.Build.VERSION.SDK_INT >= 24) {
-            Html.fromHtml(text, Html.FROM_HTML_MODE_LEGACY)
-        } else {
-            Html.fromHtml(text)
-        }
+        contentView.text = Html.fromHtml(text, Html.FROM_HTML_MODE_LEGACY)
     }
 
     private fun getChapterCount(book: String): Int {
@@ -135,43 +117,4 @@ class MainActivity : AppCompatActivity() {
             if(c.moveToFirst()) {
                 val t = c.getString(0)
                 c.close()
-                return t
-            }
-            c.close()
-            return "Commentary not found for $book $chapter"
-        } catch(e: Exception) {
-            return "Error: ${e.message}"
-        } finally { try{db?.close()}catch(e:Exception){} }
-    }
-
-    private fun cleanDatabaseOnFirstInstall(file: File): Boolean {
-        val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-        if (prefs.getBoolean("db_cleaned_v4", false)) return false
-        if (!file.exists()) return false
-        var db: SQLiteDatabase? = null
-        var cursor: android.database.Cursor? = null
-        try {
-            db = SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
-            cursor = db.rawQuery("SELECT rowid, commentary FROM enduring_word", null)
-            db.beginTransaction()
-            while (cursor.moveToNext()) {
-                val rowId = cursor.getLong(0)
-                var t = cursor.getString(1) ?: continue
-                var prev: String; var loop=0
-                do {
-                    prev=t
-                    try{
-                        val b=t.toByteArray(charset("ISO-8859-1"))
-                        val d=String(b, charset("UTF-8"))
-                        if(d.length <= t.length+20) t=d
-                    }catch(e:Exception){break}
-                    loop++
-                }while(t!=prev && loop<5)
-                t=t.replace("\u00E2\u20AC\u2013","\u2013").replace("\u00E2\u20AC\u2014","\u2014").replace("\u00E2\u20AC\u2122","'").replace("\u00C2"," ")
-                t=t.replace("&#8217;","'").replace("&#8211;","\u2013").replace("&#8212;","\u2014").replace("&amp;","&")
-                t=t.replace(Regex("(?is)<h3[^>]*>.*?Videos for.*?</h3>.*?<p><a.*?</p>"),"")
-                t=t.replace(Regex("(?is)High Points.*"),"")
-                db.execSQL("UPDATE enduring_word SET commentary=? WHERE rowid=?", arrayOf(t, rowId))
-            }
-            cursor.close(); db.setTransactionSuccessful(); db.endTransaction()
-            prefs.edit().putBoolean("db_cleaned
+               
