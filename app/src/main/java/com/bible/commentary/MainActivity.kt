@@ -1,19 +1,17 @@
 package com.bible.commentary
 
+import android.database.sqlite.SQLiteDatabase
 import android.os.Bundle
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.Toast
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import android.app.AlertDialog
+import kotlinx.coroutines.*
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URL
-import android.database.sqlite.SQLiteDatabase
-import android.app.AlertDialog
-import android.widget.ProgressBar
-import android.widget.LinearLayout
-import android.widget.TextView
-import kotlinx.coroutines.*
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
@@ -26,10 +24,12 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         webView = WebView(this)
-        setContentView(webView)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.webViewClient = WebViewClient()
+        webView.addJavascriptInterface(JSInterface(), "Android")
+        setContentView(webView)
+        
         val dbFile = File(filesDir, DB_NAME)
         if (!dbFile.exists()) {
             downloadDB(DB_URL, dbFile)
@@ -48,11 +48,7 @@ class MainActivity : AppCompatActivity() {
         progressBar!!.max = 100
         layout.addView(progressText)
         layout.addView(progressBar)
-        progressDialog = AlertDialog.Builder(this)
-            .setTitle("Please wait")
-            .setView(layout)
-            .setCancelable(false)
-            .create()
+        progressDialog = AlertDialog.Builder(this).setTitle("Please wait").setView(layout).setCancelable(false).create()
         progressDialog!!.show()
     }
 
@@ -87,6 +83,7 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     progressDialog?.dismiss()
                     Toast.makeText(this@MainActivity, "Failed: " + e.message, Toast.LENGTH_LONG).show()
+                    loadApp()
                 }
             }
         }
@@ -95,14 +92,7 @@ class MainActivity : AppCompatActivity() {
     fun loadApp() {
         val html = """
         <!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-        <style>
-        body{margin:0;font-family:system-ui;background:#f6f7fb}
-        .hdr{background:#111827;color:#fff;padding:16px;text-align:center;position:sticky;top:0}
-        .wrap{max-width:700px;margin:0 auto;padding:12px}
-        .card{background:#fff;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-        .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-        .btn{display:block;padding:14px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;text-align:center;text-decoration:none;color:#111827;font-weight:600}
-        </style></head><body>
+        <style>body{margin:0;font-family:system-ui;background:#f6f7fb}.hdr{background:#111827;color:#fff;padding:16px;text-align:center;position:sticky;top:0}.wrap{max-width:700px;margin:0 auto;padding:12px}.card{background:#fff;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 2px 8px rgba(0,0,0,.06)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.btn{display:block;padding:14px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;text-align:center;text-decoration:none;color:#111827;font-weight:600}</style></head><body>
         <div class="hdr"><h2 style="margin:0">Bible Commentary</h2><p style="margin:4px 0 0;opacity:.7;font-size:12px">Genesis to Revelation - Offline</p></div>
         <div class="wrap" id="app">Loading...</div>
         <script>
@@ -116,18 +106,17 @@ class MainActivity : AppCompatActivity() {
         </script></body></html>
         """
         webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
-        webView.addJavascriptInterface(JSInterface(), "Android")
     }
 
     inner class JSInterface {
-        @android.webkit.JavascriptInterface
+        @JavascriptInterface
         fun getCommentary(book: String, ch: Int) {
             runOnUiThread {
                 try {
                     val dbFile = File(filesDir, DB_NAME)
                     val db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
                     val cursor = db.rawQuery("SELECT commentary FROM enduring_word WHERE book=? AND chapter=?", arrayOf(book, ch.toString()))
-                    var content = "<p>No commentary found.</p>"
+                    var content = "<p>No commentary found for this chapter.</p>"
                     if (cursor.moveToFirst()) { content = cursor.getString(0) }
                     cursor.close()
                     db.close()
