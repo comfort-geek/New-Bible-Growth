@@ -75,7 +75,7 @@ class MainActivity : AppCompatActivity() {
                         val pct = (total * 100 / length).toInt()
                         withContext(Dispatchers.Main) { 
                             progressBar?.progress = pct
-                            progressText?.text = "Downloading $pct% - $total bytes"
+                            progressText?.text = "Downloading $pct%"
                         }
                     }
                     output.write(data, 0, count)
@@ -109,4 +109,34 @@ class MainActivity : AppCompatActivity() {
         const BOOKS = [["Genesis",50],["Exodus",40],["Leviticus",27],["Numbers",36],["Deuteronomy",34],["Joshua",24],["Judges",21],["Ruth",4],["1 Samuel",31],["2 Samuel",24],["1 Kings",22],["2 Kings",25],["1 Chronicles",29],["2 Chronicles",36],["Ezra",10],["Nehemiah",13],["Esther",10],["Job",42],["Psalms",150],["Proverbs",31],["Ecclesiastes",12],["Song of Solomon",8],["Isaiah",66],["Jeremiah",52],["Lamentations",5],["Ezekiel",48],["Daniel",12],["Hosea",14],["Joel",3],["Amos",9],["Obadiah",1],["Jonah",4],["Micah",7],["Nahum",3],["Habakkuk",3],["Zephaniah",3],["Haggai",2],["Zechariah",14],["Malachi",4],["Matthew",28],["Mark",16],["Luke",24],["John",21],["Acts",28],["Romans",16],["1 Corinthians",16],["2 Corinthians",13],["Galatians",6],["Ephesians",6],["Philippians",4],["Colossians",4],["1 Thessalonians",5],["2 Thessalonians",3],["1 Timothy",6],["2 Timothy",4],["Titus",3],["Philemon",1],["Hebrews",13],["James",5],["1 Peter",5],["2 Peter",3],["1 John",5],["2 John",1],["3 John",1],["Jude",1],["Revelation",22]];
         let curBook="", curCh=1;
         function renderHome(){let h='<div class="card"><div class="grid">';BOOKS.forEach(b=>{h+=`<a class="btn" href="#" onclick="openBook('${'$'}{b[0]}')">${'$'}{b[0]}<br><small>${'$'}{b[1]} ch</small></a>`});h+='</div></div>';document.getElementById('app').innerHTML=h;}
-        function openBook(book){curBook=book;let total=BOOKS.find(x=>x[0]==book)[1];let h=`<div class="card"><a href="#" onclick="renderHome()">Back</a><h2>${'$'}{book}</h2><div class="grid">`;for(let i=1;i<=total;i++){h+=`<a class="btn" href="#" onclick="openChap(${'$'}{i})">${'$'}{i}</a>`}h+='</div></div>';
+        function openBook(book){curBook=book;let total=BOOKS.find(x=>x[0]==book)[1];let h=`<div class="card"><a href="#" onclick="renderHome()">Back</a><h2>${'$'}{book}</h2><div class="grid">`;for(let i=1;i<=total;i++){h+=`<a class="btn" href="#" onclick="openChap(${'$'}{i})">${'$'}{i}</a>`}h+='</div></div>';document.getElementById('app').innerHTML=h;}
+        function openChap(ch){curCh=ch;Android.getCommentary(curBook, ch);}
+        function showCommentary(book,ch,htmlContent){let h=`<div class="card"><a href="#" onclick="openBook('${'$'}{book}')">Back ${'$'}{book}</a><h2>${'$'}{book} ${'$'}{ch}</h2><div style="display:flex;justify-content:space-between;margin:10px 0"><a class="btn" href="#" onclick="openChap(${'$'}{Math.max(1,ch-1)})">Prev</a><a class="btn" href="#" onclick="openChap(${'$'}{ch+1})">Next</a></div><div style="line-height:1.8;font-size:16px">${'$'}{htmlContent}</div></div>`;document.getElementById('app').innerHTML=h;window.scrollTo(0,0);}
+        renderHome();
+        </script></body></html>
+        """
+        webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+        webView.addJavascriptInterface(JSInterface(), "Android")
+    }
+
+    inner class JSInterface {
+        @android.webkit.JavascriptInterface
+        fun getCommentary(book: String, ch: Int) {
+            runOnUiThread {
+                try {
+                    val dbFile = File(filesDir, DB_NAME)
+                    val db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
+                    val cursor = db.rawQuery("SELECT commentary FROM enduring_word WHERE book=? AND chapter=?", arrayOf(book, ch.toString()))
+                    var content = "<p>No commentary found.</p>"
+                    if (cursor.moveToFirst()) { content = cursor.getString(0) }
+                    cursor.close()
+                    db.close()
+                    val safe = content.replace("`","'").replace("$","\\$")
+                    webView.evaluateJavascript("showCommentary('$book', $ch, `$safe`)", null)
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, e.message, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+}
