@@ -1,4 +1,4 @@
-name: Build APK 50MB FINAL
+name: Build APK 50MB WORKING
 
 on:
   push:
@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 40
 
     steps:
       - uses: actions/checkout@v4
@@ -32,18 +33,12 @@ jobs:
           rm -rf ~/.buildozer/android/platform/android-sdk
           mkdir -p ~/.buildozer/android/platform/
           ln -s /usr/local/lib/android/sdk ~/.buildozer/android/platform/android-sdk
-          
           rm -rf ~/.buildozer/android/platform/android-ndk-r28c
           ln -s /usr/local/lib/android/sdk/ndk/30.0.16248370 ~/.buildozer/android/platform/android-ndk-r28c
-          
           mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
           ln -sf /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
           ln -sf /usr/local/lib/android/sdk/cmdline-tools/latest/bin/avdmanager ~/.buildozer/android/platform/android-sdk/tools/bin/avdmanager || true
-          
           yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          
-          ls -l ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
-          ls ~/.buildozer/android/platform/android-sdk/build-tools/ | head -10
 
       - name: Download DB
         run: wget -O enduring_word_full.db "https://archive.org/download/enduring_word_full/enduring_word_full.db"
