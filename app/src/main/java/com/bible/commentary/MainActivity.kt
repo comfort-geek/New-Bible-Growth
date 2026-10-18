@@ -1,4 +1,172 @@
-package com.bible.commentary
+package package com.enduringword.commentary
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.SharedPreferences
+import android.database.sqlite.SQLiteDatabase
+import android.os.Bundle
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import java.io.File
+import java.io.FileOutputStream
+import java.net.URL
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var webView: WebView
+    private lateinit var prefs: SharedPreferences
+    private var currentBook = "Genesis"
+    private var currentChapter = 1
+
+    // Full 66 books in order - for prev/next across books
+    private val booksOrder = listOf(
+        "Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel",
+        "1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalms","Proverbs",
+        "Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos",
+        "Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi",
+        "Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians",
+        "Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon",
+        "Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation"
+    )
+
+    @SuppressLint("SetJavaScriptEnabled")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        prefs = getSharedPreferences("bible_prefs", Context.MODE_PRIVATE)
+        webView = WebView(this)
+        setContentView(webView)
+        webView.settings.javaScriptEnabled = true
+        webView.settings.domStorageEnabled = true
+        webView.webViewClient = WebViewClient()
+        webView.addJavascriptInterface(this, "Android")
+
+        val dbFile = File(filesDir, "commentary.db")
+        if (!dbFile.exists()) {
+            showDownloading()
+            Thread {
+                try {
+                    // REPLACE THIS URL with your actual DB download link
+                    val dbUrl = "https://github.com/YOUR_USERNAME/YOUR_REPO/releases/download/v1.0/commentary.db"
+                    URL(dbUrl).openStream().use { input ->
+                        FileOutputStream(dbFile).use { output -> input.copyTo(output) }
+                    }
+                    runOnUiThread { openBooksList() }
+                } catch (e: Exception) {
+                    runOnUiThread { Toast.makeText(this, "DB download failed: ${e.message}", Toast.LENGTH_LONG).show() }
+                }
+            }.start()
+        } else {
+            val lastBook = prefs.getString("last_book", null)
+            if (lastBook != null) {
+                openChapterView(lastBook, prefs.getInt("last_chapter", 1))
+            } else {
+                openBooksList()
+            }
+        }
+    }
+
+    private fun showDownloading() {
+        webView.loadData("<html><body style='font-family:sans-serif;text-align:center;padding:50px'><h2>Downloading Commentary...</h2><p>42MB first time only</p></body></html>", "text/html", "UTF-8")
+    }
+
+    @JavascriptInterface
+    fun openBooks() { runOnUiThread { openBooksList() } }
+
+    @JavascriptInterface
+    fun openBook(book: String) { runOnUiThread { openChaptersList(book) } }
+
+    @JavascriptInterface
+    fun openChapter(book: String, chapter: Int) { runOnUiThread { openChapterView(book, chapter) } }
+
+    @JavascriptInterface
+    fun nextChapter() {
+        runOnUiThread {
+            // save scroll
+            webView.evaluateJavascript("window.scrollY") { y ->
+                prefs.edit().putInt("scroll_${currentBook}_$currentChapter", y.toIntOrNull() ?: 0).apply()
+            }
+            Thread {
+                try {
+                    val db = SQLiteDatabase.openDatabase(File(filesDir, "commentary.db").path, null, SQLiteDatabase.OPEN_READONLY)
+                    val cur = db.rawQuery("SELECT MAX(chapter) FROM enduring_word WHERE book=?", arrayOf(currentBook))
+                    cur.moveToFirst()
+                    val maxChap = cur.getInt(0)
+                    cur.close()
+                    db.close()
+                    runOnUiThread {
+                        if (currentChapter < maxChap) openChapterView(currentBook, currentChapter + 1)
+                        else {
+                            val idx = booksOrder.indexOf(currentBook)
+                            if (idx < booksOrder.size - 1) openChapterView(booksOrder[idx + 1], 1)
+                            else Toast.makeText(this, "This is Revelation - last book", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } catch (e: Exception) {}
+            }.start()
+        }
+    }
+
+    @JavascriptInterface
+    fun prevChapter() {
+        runOnUiThread {
+            if (currentChapter > 1) openChapterView(currentBook, currentChapter - 1)
+            else {
+                val idx = booksOrder.indexOf(currentBook)
+                if (idx > 0) {
+                    val prevBook = booksOrder[idx - 1]
+                    Thread {
+                        val db = SQLiteDatabase.openDatabase(File(filesDir, "commentary.db").path, null, SQLiteDatabase.OPEN_READONLY)
+                        val cur = db.rawQuery("SELECT MAX(chapter) FROM enduring_word WHERE book=?", arrayOf(prevBook))
+                        cur.moveToFirst()
+                        val maxChap = cur.getInt(0)
+                        cur.close()
+                        db.close()
+                        runOnUiThread { openChapterView(prevBook, maxChap) }
+                    }.start()
+                }
+            }
+        }
+    }
+
+    private fun openBooksList() {
+        Thread {
+            try {
+                val db = SQLiteDatabase.openDatabase(File(filesDir, "commentary.db").path, null, SQLiteDatabase.OPEN_READONLY)
+                val cur = db.rawQuery("SELECT DISTINCT book FROM enduring_word", null)
+                val found = mutableListOf<String>()
+                while (cur.moveToNext()) found.add(cur.getString(0))
+                cur.close()
+                db.close()
+                // Order by our canonical list
+                val ordered = booksOrder.filter { it in found }
+
+                val html = buildString {
+                    append("<html><head><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:sans-serif;margin:0;background:#f8f9fa}.header{padding:16px;background:white;box-shadow:0 2px 8px rgba(0,0,0,.08);position:sticky;top:0} .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px} .book{padding:18px;background:white;border-radius:12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.08);font-weight:600}</style></head><body><div class='header'><h2 style='margin:0'>Enduring Word - 66 Books</h2></div><div class='grid'>")
+                    for (b in ordered) append("<div class='book' onclick=\"Android.openBook('$b')\">$b</div>")
+                    append("</div></body></html>")
+                }
+                runOnUiThread { webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null) }
+            } catch (e: Exception) {
+                runOnUiThread { Toast.makeText(this, e.message, Toast.LENGTH_LONG).show() }
+            }
+        }.start()
+    }
+
+    private fun openChaptersList(book: String) {
+        currentBook = book
+        Thread {
+            val db = SQLiteDatabase.openDatabase(File(filesDir, "commentary.db").path, null, SQLiteDatabase.OPEN_READONLY)
+            val cur = db.rawQuery("SELECT chapter FROM enduring_word WHERE book=? ORDER BY CAST(chapter AS INTEGER)", arrayOf(book))
+            val chapters = mutableListOf<Int>()
+            while (cur.moveToNext()) chapters.add(cur.getInt(0))
+            cur.close()
+            db.close()
+
+            val html = buildString {
+                append("<html><head><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{font-family:sans-serif;margin:0;background:#f8f9fa}.top{position:sticky;top:0;background:white;display:flex;gap:12px;align-items:center;padding:12px 16px;box
 
 import android.annotation.SuppressLint
 import android.database.sqlite.SQLiteDatabase
