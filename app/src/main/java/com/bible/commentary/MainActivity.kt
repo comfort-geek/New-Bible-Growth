@@ -1,147 +1,117 @@
-package com.bible.commentary
+package com.enduringword.app
 
-import android.app.AlertDialog
+import android.annotation.SuppressLint
 import android.database.sqlite.SQLiteDatabase
 import android.os.Bundle
-import android.util.Base64
-import android.webkit.JavascriptInterface
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.LinearLayout
-import android.widget.ProgressBar
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.io.File
 import java.io.FileOutputStream
 import java.net.URL
+import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var webView: WebView
-    private val DB_URL = "https://archive.org/download/commentary_202610/commentary.db"
-    private val DB_NAME = "commentary.db"
-    private var progressDialog: AlertDialog? = null
-    private var progressBar: ProgressBar? = null
-    private var progressText: TextView? = null
 
+    private lateinit var webView: WebView
+    private val prefs by lazy { getSharedPreferences("bible_prefs", MODE_PRIVATE) }
+    private var currentBook = "Genesis"
+    private var currentChapter = 1
+
+    private val books = listOf(
+        "Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth",
+        "1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah",
+        "Esther","Job","Psalm","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah",
+        "Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum",
+        "Habakkuk","Zephaniah","Haggai","Zechariah","Malachi","Matthew","Mark","Luke","John",
+        "Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians",
+        "Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus",
+        "Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation"
+    )
+
+    private val chapterCount = mapOf(
+        "Genesis" to 50, "Exodus" to 40, "Leviticus" to 27, "Numbers" to 36, "Deuteronomy" to 34,
+        "Joshua" to 24, "Judges" to 21, "Ruth" to 4, "1 Samuel" to 31, "2 Samuel" to 24,
+        "1 Kings" to 22, "2 Kings" to 25, "1 Chronicles" to 29, "2 Chronicles" to 36,
+        "Ezra" to 10, "Nehemiah" to 13, "Esther" to 10, "Job" to 42, "Psalm" to 150,
+        "Proverbs" to 31, "Ecclesiastes" to 12, "Song of Solomon" to 8, "Isaiah" to 66,
+        "Jeremiah" to 52, "Lamentations" to 5, "Ezekiel" to 48, "Daniel" to 12, "Hosea" to 14,
+        "Joel" to 3, "Amos" to 9, "Obadiah" to 1, "Jonah" to 4, "Micah" to 7, "Nahum" to 3,
+        "Habakkuk" to 3, "Zephaniah" to 3, "Haggai" to 2, "Zechariah" to 14, "Malachi" to 4,
+        "Matthew" to 28, "Mark" to 16, "Luke" to 24, "John" to 21, "Acts" to 28, "Romans" to 16,
+        "1 Corinthians" to 16, "2 Corinthians" to 13, "Galatians" to 6, "Ephesians" to 6,
+        "Philippians" to 4, "Colossians" to 4, "1 Thessalonians" to 5, "2 Thessalonians" to 3,
+        "1 Timothy" to 6, "2 Timothy" to 4, "Titus" to 3, "Philemon" to 1, "Hebrews" to 13,
+        "James" to 5, "1 Peter" to 5, "2 Peter" to 3, "1 John" to 5, "2 John" to 1, "3 John" to 1,
+        "Jude" to 1, "Revelation" to 22
+    )
+
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        supportActionBar?.hide()
         webView = WebView(this)
+        setContentView(webView)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.webViewClient = WebViewClient()
         webView.addJavascriptInterface(JSBridge(), "Android")
-        setContentView(webView)
-        val dbFile = File(filesDir, DB_NAME)
-        if (!dbFile.exists() || dbFile.length() < 1000) {
-            if(dbFile.exists()) dbFile.delete()
-            downloadDB(dbFile)
-        } else {
-            loadApp()
+        setupSwipe()
+        ensureDbAndStart()
+    }
+
+    // FIXED: Uses YOUR Internet Archive link
+    private fun ensureDbAndStart() {
+        val dbFile = File(filesDir, "commentary.db")
+        if (dbFile.exists() && dbFile.length() > 1000000) {
+            startApp()
+            return
         }
-    }
-
-    private fun showProgress() {
-        val layout = LinearLayout(this)
-        layout.orientation = LinearLayout.VERTICAL
-        layout.setPadding(50, 50, 50, 50)
-        progressText = TextView(this)
-        progressText!!.text = "Downloading 40MB - First time..."
-        progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal)
-        progressBar!!.max = 100
-        layout.addView(progressText)
-        layout.addView(progressBar)
-        progressDialog = AlertDialog.Builder(this).setTitle("Bible Commentary").setView(layout).setCancelable(false).create()
-        progressDialog!!.show()
-    }
-
-    private fun downloadDB(outFile: File) {
-        showProgress()
-        Thread {
+        showLoading("Downloading 42MB commentary... First launch only (from Internet Archive)")
+        thread {
             try {
-                val url = URL(DB_URL)
-                val conn = url.openConnection()
-                conn.connect()
-                val length = conn.contentLength
-                val input = conn.getInputStream()
-                val output = FileOutputStream(outFile)
-                val data = ByteArray(8192)
-                var total: Long = 0
-                var count: Int
-                while (input.read(data).also { count = it } != -1) {
-                    total += count
-                    if (length > 0) {
-                        val pct = (total * 100 / length).toInt()
-                        runOnUiThread {
-                            progressBar?.progress = pct
-                            progressText?.text = "Downloading " + pct + "%"
-                        }
-                    }
-                    output.write(data, 0, count)
+                val url = "https://archive.org/download/commentary_202610/commentary.db"
+                URL(url).openStream().use { input ->
+                    FileOutputStream(dbFile).use { output -> input.copyTo(output) }
                 }
-                output.close()
-                input.close()
-                runOnUiThread {
-                    progressDialog?.dismiss()
-                    Toast.makeText(this, "Download Done!", Toast.LENGTH_SHORT).show()
-                    loadApp()
-                }
+                runOnUiThread { startApp() }
             } catch (e: Exception) {
-                runOnUiThread {
-                    progressDialog?.dismiss()
-                    Toast.makeText(this, "Download failed: " + e.message + " - Loading offline mode", Toast.LENGTH_LONG).show()
-                    loadApp()
-                }
+                runOnUiThread { Toast.makeText(this, "Download failed: ${e.message}", Toast.LENGTH_LONG).show() }
             }
-        }.start()
-    }
-
-    private fun loadApp() {
-        val html = """
-        <!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>
-        <style>body{margin:0;font-family:system-ui;background:#f6f7fb}.hdr{background:#111827;color:#fff;padding:16px;text-align:center;position:sticky;top:0}.wrap{max-width:700px;margin:0 auto;padding:12px}.card{background:#fff;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 2px 8px rgba(0,0,0,.06)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.btn{display:block;padding:14px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;text-align:center;text-decoration:none;color:#111827;font-weight:600}</style>
-        </head><body><div class='hdr'><h2 style='margin:0'>Bible Commentary</h2><p style='margin:4px 0 0;opacity:.7;font-size:12px'>Genesis to Revelation - Offline</p></div><div class='wrap' id='app'>Loading...</div>
-        <script>
-            const BOOKS = [["Genesis",50],["Exodus",40],["Leviticus",27],["Numbers",36],["Deuteronomy",34],["Joshua",24],["Judges",21],["Ruth",4],["1 Samuel",31],["2 Samuel",24],["1 Kings",22],["2 Kings",25],["1 Chronicles",29],["2 Chronicles",36],["Ezra",10],["Nehemiah",13],["Esther",10],["Job",42],["Psalms",150],["Proverbs",31],["Ecclesiastes",12],["Song of Solomon",8],["Isaiah",66],["Jeremiah",52],["Lamentations",5],["Ezekiel",48],["Daniel",12],["Hosea",14],["Joel",3],["Amos",9],["Obadiah",1],["Jonah",4],["Micah",7],["Nahum",3],["Habakkuk",3],["Zephaniah",3],["Haggai",2],["Zechariah",14],["Malachi",4],["Matthew",28],["Mark",16],["Luke",24],["John",21],["Acts",28],["Romans",16],["1 Corinthians",16],["2 Corinthians",13],["Galatians",6],["Ephesians",6],["Philippians",4],["Colossians",4],["1 Thessalonians",5],["2 Thessalonians",3],["1 Timothy",6],["2 Timothy",4],["Titus",3],["Philemon",1],["Hebrews",13],["James",5],["1 Peter",5],["2 Peter",3],["1 John",5],["2 John",1],["3 John",1],["Jude",1],["Revelation",22]];
-            function renderHome(){let h='<div class="card"><div class="grid">';BOOKS.forEach(b=>{h+='<a class="btn" href="#" onclick="openBook(\''+b[0]+'\')">'+b[0]+'<br><small>'+b[1]+' ch</small></a>'});h+='</div></div>';document.getElementById('app').innerHTML=h;}
-            function openBook(book){let total=BOOKS.find(x=>x[0]==book)[1];let h='<div class="card"><a href="#" onclick="renderHome()">Back</a><h2>'+book+'</h2><div class="grid">';for(let i=1;i<=total;i++){h+='<a class="btn" href="#" onclick="openChap('+i+')">'+i+'</a>'}h+='</div></div>';document.getElementById('app').innerHTML=h; window.curBook=book;}
-            function openChap(ch){window.curCh=ch; document.getElementById('app').innerHTML='<div class="card"><p>Loading commentary...</p></div>'; Android.getCommentary(window.curBook, ch);}
-            function showCommentaryBase64(book,ch,b64){try{let html=atob(b64);let h='<div class="card"><a href="#" onclick="openBook(\''+book+'\')">Back '+book+'</a><h2>'+book+' '+ch+'</h2><div style="display:flex;gap:8px;margin:10px 0"><a class="btn" style="flex:1" href="#" onclick="openChap(Math.max(1,ch-1))">Prev</a><a class="btn" style="flex:1" href="#" onclick="openChap(ch+1)">Next</a></div><div style="line-height:1.8;font-size:16px">'+html+'</div></div>';document.getElementById('app').innerHTML=h;window.scrollTo(0,0);}catch(e){document.getElementById('app').innerHTML='<div class="card">Error loading</div>'}}
-            renderHome();
-        </script></body></html>
-        """.trimIndent()
-        webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
-    }
-
-    inner class JSBridge {
-        @JavascriptInterface
-        fun getCommentary(book: String, ch: Int) {
-            Thread {
-                try {
-                    val dbFile = File(filesDir, DB_NAME)
-                    var content = "<p>No DB file found. Please reinstall.</p>"
-                    if (dbFile.exists() && dbFile.length() > 1000) {
-                        val db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
-                        val cursor = db.rawQuery("SELECT commentary FROM enduring_word WHERE book=? AND chapter=? LIMIT 1", arrayOf(book, ch.toString()))
-                        if (cursor.moveToFirst()) {
-                            content = cursor.getString(0)
-                            if(content.isEmpty()) content = "<p>No commentary for this chapter.</p>"
-                        } else {
-                            content = "<p>No commentary found for " + book + " " + ch + "</p>"
-                        }
-                        cursor.close()
-                        db.close()
-                    }
-                    val b64 = Base64.encodeToString(content.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-                    runOnUiThread {
-                        webView.evaluateJavascript("showCommentaryBase64('$book', $ch, '$b64')", null)
-                    }
-                } catch (e: Exception) {
-                    runOnUiThread {
-                        Toast.makeText(this@MainActivity, "Error: " + e.message, Toast.LENGTH_LONG).show()
-                    }
-                }
-            }.start()
         }
     }
-}
+
+    private fun startApp() {
+        val savedBook = prefs.getString("last_book", null)
+        val savedChapter = prefs.getInt("last_chapter", 0)
+        if (savedBook != null && savedChapter > 0) {
+            openChapterView(savedBook, savedChapter)
+        } else {
+            showBookList()
+        }
+    }
+
+    private fun showBookList() {
+        val htmlBooks = books.joinToString("") { "<a class='book' onclick=\"Android.openBook('$it')\">$it</a>" }
+        val page = """
+            <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body{font-family:sans-serif;background:#f6f7f9;margin:0;padding:16px}
+                h1{text-align:center;color:#1a1a1a}
+                .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:600px;margin:0 auto}
+                .book{background:white;padding:14px;border-radius:12px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,0.08);font-weight:600;color:#2a6db0;cursor:pointer}
+                .resume{background:#2a6db0;color:white;padding:14px;border-radius:12px;text-align:center;max-width:600px;margin:0 auto 16px;cursor:pointer;font-weight:700}
+            </style></head><body>
+            <h1>Enduring Word</h1>
+            ${if(prefs.contains("last_book")) "<div class='resume' onclick=\"Android.resume()\">Resume: ${prefs.getString("last_book")} ${prefs.getInt("last_chapter",1)}</div>" else ""}
+            <div class="grid">$htmlBooks</div></body></html>
+        """.trimIndent()
+        webView.loadDataWithBaseURL(null, page, "text/html", "UTF-8", null)
+    }
+
+    private fun showChapterList(book: String) {
+        currentBook = book
+        val count
