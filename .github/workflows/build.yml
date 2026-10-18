@@ -22,6 +22,15 @@ jobs:
         with:
           gradle-version: 8.7
 
+      - name: Download commentary.db
+        run: |
+          mkdir -p app/src/main/assets/databases
+          echo "Downloading DB..."
+          curl -L --fail -o app/src/main/assets/databases/commentary.db https://archive.org/download/commentary_202610/commentary.db
+          ls -lh app/src/main/assets/databases/commentary.db
+          echo "DB size:"
+          du -h app/src/main/assets/databases/commentary.db
+
       - name: Build Debug APK
         run: gradle assembleDebug --no-daemon
 
