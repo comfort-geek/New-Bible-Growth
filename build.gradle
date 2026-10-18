@@ -1,31 +1,5 @@
 plugins {
-    id 'com.android.application' version '8.0.2' apply false
-    id 'org.jetbrains.kotlin.android' version '1.8.22' apply false
+    id 'com.android.application' version '8.2.2' apply false
+    id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
 }
-
-android {
-    compileSdk 34
-
-    defaultConfig {
-        applicationId "com.biblegrowth.newbiblegrowth"
-        minSdk 21  // <-- SUPPORTS ANDROID 5.0 TO 15
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
-        
-        // Support all architectures
-        ndk {
-            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
-        }
-    }
-
-    buildTypes {
-        debug {
-            debuggable true
-            minifyEnabled false
-        }
-        release {
-            minifyEnabled false
-        }
-    }
-}
+task clean(type: Delete) { delete rootProject.buildDir }
