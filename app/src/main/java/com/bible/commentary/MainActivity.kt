@@ -1,59 +1,44 @@
-package com.yourapp.biblecommentary
+package com.bible.commentary
 
 import android.database.sqlite.SQLiteDatabase
 import android.os.Bundle
 import android.util.Log
-import android.webkit.WebView
 import androidx.appcompat.app.AppCompatActivity
 import java.io.File
-import java.io.FileOutputStream
-import java.net.URL
 
 class MainActivity : AppCompatActivity() {
-
-    private lateinit var webView: WebView
-    private lateinit var dbFile: File
-
-    // CHANGE THIS TO YOUR RELEASE URL
-    private val DB_URL = "https://github.com/YOURNAME/YOURREPO/releases/download/v1.0/commentary.db"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        webView = findViewById(R.id.webView)
-        dbFile = File(getDatabasePath("commentary.db").path)
 
-        // If DB doesn't exist, download then clean it
+        val dbFile = File(getDatabasePath("commentary.db").path)
+
+        // if first time, download will happen in your existing code
+        // For now we ensure DB exists then clean it
         if (!dbFile.exists()) {
-            Thread {
-                try {
-                    downloadDatabase()
-                    cleanDatabaseOnFirstInstall(dbFile) // <-- CLEAN HERE
-                    runOnUiThread { openChapterView("Genesis", 1) }
-                } catch (e: Exception) {
-                    Log.e("APP", "Download failed", e)
-                }
-            }.start()
+            // If you download from internet, put your download code here
+            // downloadDatabase(dbFile)
+            Log.d("DB", "DB not found - you need to download first")
         } else {
-            // Already exists, but ensure it was cleaned once
             cleanDatabaseOnFirstInstall(dbFile)
-            openChapterView("Genesis", 1)
         }
+
+        openChapterView("Genesis", 1)
     }
 
-    private fun downloadDatabase() {
-        dbFile.parentFile?.mkdirs()
-        URL(DB_URL).openStream().use { input ->
-            FileOutputStream(dbFile).use { output ->
-                input.copyTo(output)
-            }
-        }
+    private fun openChapterView(book: String, chapter: Int) {
+        // your existing code to open chapter - keep it
+        // example:
+        // val intent = Intent(this, ChapterActivity::class.java)
+        // intent.putExtra("book", book)
+        // intent.putExtra("chapter", chapter)
+        // startActivity(intent)
     }
 
-    // === THIS CLEANS THE WHOLE DB ON FIRST INSTALL - 1189 CHAPTERS ===
     private fun cleanDatabaseOnFirstInstall(file: File) {
         val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-        if (prefs.getBoolean("db_cleaned_v3", false)) return
+        if (prefs.getBoolean("db_cleaned_v4", false)) return
         if (!file.exists()) return
 
         var db: SQLiteDatabase? = null
@@ -64,38 +49,55 @@ class MainActivity : AppCompatActivity() {
 
             while (cursor.moveToNext()) {
                 val rowId = cursor.getLong(0)
-                var text = cursor.getString(1) ?: continue
+                var t = cursor.getString(1) ?: continue
 
-                // 1. Fix double UTF-8  Genesis 1 â€“ -> Genesis 1 –
-                repeat(5) {
-                    if (!text.contains('â') && !text.contains('Â')) return@repeat
+                // fix mojibake - same logic as your pydroid script
+                var prev: String
+                var loop = 0
+                do {
+                    prev = t
                     try {
-                        val decoded = String(text.toByteArray(Charsets.ISO_8859_1), Charsets.UTF_8)
-                        if (decoded.count { c -> c == 'â' } < text.count { c -> c == 'â' }) {
-                            text = decoded
-                        }
-                    } catch (_: Exception) {}
-                }
+                        val b = t.toByteArray(charset("ISO-8859-1"))
+                        val d = String(b, charset("UTF-8"))
+                        if (d.length <= t.length + 20) t = d
+                    } catch (e: Exception) { break }
+                    loop++
+                } while (t != prev && loop < 5)
 
-                // 2. Manual replaces
-                text = text.replace("â€“", "–")
-                    .replace("â—", "—")
-                    .replace("â€”", "—")
-                    .replace("â€™", "'")
-                    .replace("â€˜", "'")
-                    .replace("â€œ", "\"")
-                    .replace("â€", "\"")
-                    .replace("â€¦", "...")
-                    .replace("Â", " ")
+                // safe replaces - unicode escapes only
+                t = t.replace("\u00E2\u20AC\u2013", "\u2013")
+                t = t.replace("\u00E2\u20AC\u2014", "\u2014")
+                t = t.replace("\u00E2\u20AC\u2122", "'")
+                t = t.replace("\u00E2\u20AC\u0153", "\"")
+                t = t.replace("\u00E2\u20AC\u009D", "\"")
+                t = t.replace("\u00E2\u20AC\u00A6", "...")
+                t = t.replace("\u00C2", " ")
 
-                // 3. Decode entities  God&#8217;s -> God's
-                text = text.replace("&#8217;", "'")
-                    .replace("&#8211;", "–")
-                    .replace("&#8212;", "—")
-                    .replace("&#8220;", "\"")
-                    .replace("&#8221;", "\"")
-                    .replace("&amp;", "&")
-                    .replace("&#038;", "&")
+                t = t.replace("&#8217;", "'")
+                t = t.replace("&#8211;", "\u2013")
+                t = t.replace("&#8212;", "\u2014")
+                t = t.replace("&#8220;", "\"")
+                t = t.replace("&#8221;", "\"")
+                t = t.replace("&amp;", "&")
+                t = t.replace("&#038;", "&")
+                t = t.replace("&#8216;", "'")
 
-                // 4. Remove Videos for Genesis and High Points
-                text = text.replace(Regex("(?is)<h3[^>]*>.*?Videos for.*
+                // remove Videos block and High Points
+                t = t.replace(Regex("(?is)<h3[^>]*>.*?Videos for.*?</h3>.*?<p><a.*?</p>"), "")
+                t = t.replace(Regex("(?is)High Points.*"), "")
+
+                db.execSQL("UPDATE enduring_word SET commentary=? WHERE rowid=?", arrayOf(t, rowId))
+            }
+            cursor.close()
+            db.setTransactionSuccessful()
+            db.endTransaction()
+            prefs.edit().putBoolean("db_cleaned_v4", true).apply()
+            Log.d("DB_CLEAN", "Cleaned OK")
+        } catch (e: Exception) {
+            Log.e("DB_CLEAN", "fail", e)
+        } finally {
+            try { db?.endTransaction() } catch (e: Exception) {}
+            try { db?.close() } catch (e: Exception) {}
+        }
+    }
+}
