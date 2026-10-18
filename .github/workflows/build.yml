@@ -23,14 +23,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon
 
       - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --no-daemon
+        run: gradle testDebugUnitTest --no-daemon
         continue-on-error: true
 
       - name: Upload APK
@@ -41,4 +38,4 @@ jobs:
 
       - name: Build Status
         if: success()
-        run: echo "✅ BUILD GREEN - Ready for Play Store!"
+        run: echo "BUILD GREEN - Ready!"
