@@ -1,4 +1,4 @@
-name: Universal APK Any Device
+name: Bible Commentary Build
 on: [push]
 jobs:
   build:
@@ -9,11 +9,6 @@ jobs:
         with: {distribution: 'temurin', java-version: '17'}
       - uses: gradle/gradle-build-action@v3
         with: {gradle-version: 8.7}
-      - name: Fix Icons
-        run: |
-          rm -rf app/src/main/res/mipmap-* || true
-          sed -i 's/@mipmap\/.*/@android:mipmap\/sym_def_app_icon/g' app/src/main/AndroidManifest.xml || true
-      - name: Build DEBUG Universal APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+      - run: gradle assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
-        with: {name: Bible-UNIVERSAL-ANY-PHONE, path: app/build/outputs/apk/debug/*.apk}
+        with: {name: Bible-Commentary-APK, path: app/build/outputs/apk/debug/*.apk}
