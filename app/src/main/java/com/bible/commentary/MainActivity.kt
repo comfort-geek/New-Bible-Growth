@@ -11,13 +11,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 class MainActivity : AppCompatActivity() {
-
-    var curBook = "Genesis"
-    var curChapter = 1
-    var curChCount = 50
-    var mode = 0
-    lateinit var content: LinearLayout
-    lateinit var dbFile: File
+    var curBook = "Genesis"; var curChapter = 1; var curChCount = 50; var mode = 0
+    lateinit var content: LinearLayout; lateinit var dbFile: File
     var allTables: List<String> = emptyList()
     val DB_URL = "https://archive.org/download/commentary_202610/commentary.db"
 
@@ -36,4 +31,26 @@ class MainActivity : AppCompatActivity() {
             "Galatians" -> 6; "Ephesians" -> 6; "Philippians" -> 4; "Colossians" -> 4
             "1 Thessalonians" -> 5; "2 Thessalonians" -> 3; "1 Timothy" -> 6; "2 Timothy" -> 4
             "Titus" -> 3; "Philemon" -> 1; "Hebrews" -> 13; "James" -> 5; "1 Peter" -> 5
-            "2 Peter" -> 3; "1 John" -> 5; "2 John" -> 1; "3 John" -> 1; "Jude
+            "2 Peter" -> 3; "1 John" -> 5; "2 John" -> 1; "3 John" -> 1; "Jude" -> 1
+            "Revelation" -> 22; else -> 50
+        }
+    }
+
+    fun cleanHtml(s: String): String {
+        val sb = StringBuilder(); var inside = false
+        for (c in s) {
+            if (c == 60.toChar()) { inside = true; continue }
+            if (c == 62.toChar()) { inside = false; continue }
+            if (!inside) sb.append(c)
+        }
+        return sb.toString()
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val root = LinearLayout(this); root.orientation = LinearLayout.VERTICAL
+        root.setBackgroundColor(0xFFF8F6F1.toInt())
+        val scroll = ScrollView(this); content = LinearLayout(this)
+        content.orientation = LinearLayout.VERTICAL; content.setPadding(30,30,30,30)
+        scroll.addView(content); root.addView(scroll); setContentView(root)
+        dbFile = getDatabasePath("commentary.db"); dbFile.parentFile?.mkdirs()
