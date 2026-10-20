@@ -6,13 +6,13 @@ import android.view.GestureDetector
 import android.view.MotionEvent
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -26,7 +26,6 @@ class MainActivity : AppCompatActivity() {
     val DB_URL = "https://archive.org/download/commentary_better/commentary_better.db"
     var currentBook = "Genesis"
     var currentChapter = 1
-
     val BOOKS = arrayOf("Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalms","Proverbs","Ecclesiastes","Song","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi","Matthew","Mark","Luke","John","Acts","Romans","1 Cor","2 Cor","Galatians","Ephesians","Philippians","Colossians","1 Thess","2 Thess","1 Tim","2 Tim","Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation")
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,20 +36,20 @@ class MainActivity : AppCompatActivity() {
         status = findViewById(R.id.status)
         gridBooks = findViewById(R.id.gridBooks)
         webView.settings.javaScriptEnabled = true
+        webView.webViewClient = WebViewClient()
         webView.addJavascriptInterface(this, "Android")
-
         val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
+                if (db == null) return false
                 val diff = e2.x - (e1?.x ?: 0f)
-                if (Math.abs(diff) > 120) {
+                if (kotlin.math.abs(diff) > 120) {
                     if (diff < 0) nextChapter() else prevChapter()
                     return true
                 }
                 return false
             }
         })
-        webView.setOnTouchListener { v, e -> detector.onTouchEvent(e); false }
-
+        webView.setOnTouchListener { _, e -> detector.onTouchEvent(e); false }
         val f = getDatabasePath("commentary_better.db")
         if (f.exists() && f.length() < 10*1024*1024) f.delete()
         if (!f.exists()) download() else openDB()
@@ -70,8 +69,8 @@ class MainActivity : AppCompatActivity() {
                 var len: Int; var dl = 0
                 while (input.read(b).also { len = it } != -1) {
                     out.write(b, 0, len); dl += len
-                    val p = if (total>0) (dl*100.0/total).toInt() else 0
-                    runOnUiThread { bar.progress = p; status.text = "Downloading DB: $p%" }
+                    val p = if (total>0) (dl*100/total).toInt() else 0
+                    runOnUiThread { try { bar.progress = p; status.text = "Downloading DB: $p%" } catch (_: Exception) {} }
                 }
                 out.close(); input.close()
                 runOnUiThread { openDB() }
@@ -87,8 +86,8 @@ class MainActivity : AppCompatActivity() {
             val f = getDatabasePath("commentary_better.db")
             db = SQLiteDatabase.openDatabase(f.path, null, SQLiteDatabase.OPEN_READONLY)
             runOnUiThread {
-                bar.visibility = android.view.View.GONE
-                status.visibility = android.view.View.GONE
+                try { bar.visibility = android.view.View.GONE } catch (_: Exception) {}
+                try { status.visibility = android.view.View.GONE } catch (_: Exception) {}
                 setupBooks()
                 loadChapter("Genesis", 1)
             }
@@ -117,6 +116,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun loadChapter(book: String, ch: Int) {
+        if (db == null) return
         currentBook = book; currentChapter = ch
         try {
             val cur = db!!.rawQuery("SELECT clickable_html, html FROM expanded_verses WHERE book=? AND chapter=? LIMIT 1", arrayOf(book, ch.toString()))
@@ -127,26 +127,10 @@ class MainActivity : AppCompatActivity() {
                 html = if (!clickable.isNullOrBlank()) clickable else plain ?: "<p>Empty</p>"
             }
             cur.close()
-            // KJV clickable links style
             val page = """
-                <style>
-                body{font-family:serif;line-height:1.9;padding:12px;background:#fdfcf8;color:#222}
-                .vref{color:#0d5bd6;background:#e8f0fe;padding:2px 6px;border-radius:6px;font-weight:700;cursor:pointer}
-                .vref:active{background:#0d5bd6;color:#fff}
-                h2{border-bottom:2px solid #ddd}
-                button{padding:8px 12px;margin:4px;border-radius:8px;border:1px solid #ccc;background:#fff}
-                </style>
-                <h2>$book $ch</h2>
-                <button onclick="Android.prev()">◀ Prev</button> <button onclick="Android.next()">Next ▶</button>
-                <hr>$html<hr>
-                <button onclick="Android.prev()">◀ Prev</button> <button onclick="Android.next()">Next ▶</button>
-                <script>
-                document.addEventListener('click', function(e){
-                  if(e.target.classList.contains('vref')){
-                    Android.showVerse(e.target.innerText)
-                  }
-                });
-                </script>
+                <style>body{font-family:serif;line-height:1.9;padding:12px;background:#fdfcf8;color:#222}.vref{color:#0d5bd6;background:#e8f0fe;padding:2px 6px;border-radius:6px;font-weight:700;cursor:pointer}.vref:active{background:#0d5bd6;color:#fff}h2{border-bottom:2px solid #ddd}button{padding:8px 12px;margin:4px;border-radius:8px;border:1px solid #ccc;background:#fff}</style>
+                <h2>$book $ch</h2><button onclick="Android.prev()">◀ Prev</button> <button onclick="Android.next()">Next ▶</button><hr>$html<hr><button onclick="Android.prev()">◀ Prev</button> <button onclick="Android.next()">Next ▶</button>
+                <script>document.addEventListener('click', function(e){ if(e.target.classList.contains('vref')){ Android.showVerse(e.target.innerText) } });</script>
             """.trimIndent()
             webView.loadDataWithBaseURL(null, page, "text/html", "utf-8", null)
         } catch (e: Exception) {
@@ -154,8 +138,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun nextChapter() { loadChapter(currentBook, currentChapter+1) }
-    fun prevChapter() { if (currentChapter>1) loadChapter(currentBook, currentChapter-1) }
+    fun nextChapter() { if (db != null) loadChapter(currentBook, currentChapter+1) }
+    fun prevChapter() { if (db != null && currentChapter>1) loadChapter(currentBook, currentChapter-1) }
 
     @JavascriptInterface
     fun showVerse(ref: String) {
@@ -164,7 +148,7 @@ class MainActivity : AppCompatActivity() {
                 val check = db!!.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='bible_verses'", null)
                 val hasTable = check.moveToFirst(); check.close()
                 if (!hasTable) {
-                    AlertDialog.Builder(this).setTitle(ref).setMessage("KJV table not found in this DB").setPositiveButton("Close", null).show()
+                    AlertDialog.Builder(this).setTitle(ref).setMessage("KJV table not found").setPositiveButton("Close", null).show()
                     return@runOnUiThread
                 }
                 val c = db!!.rawQuery("SELECT text FROM bible_verses WHERE ref=?", arrayOf(ref.trim()))
@@ -176,7 +160,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
     @JavascriptInterface fun next() { runOnUiThread { nextChapter() } }
     @JavascriptInterface fun prev() { runOnUiThread { prevChapter() } }
 }
