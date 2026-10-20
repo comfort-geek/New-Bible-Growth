@@ -24,10 +24,8 @@ class MainActivity : AppCompatActivity() {
         progressBar = findViewById(R.id.progressBar)
         status = findViewById(R.id.status)
         homeLayout = findViewById(R.id.homeLayout)
-
         webView.settings.javaScriptEnabled = true
 
-        // Simulate download then show reader
         Thread {
             for (i in 0..100) {
                 Thread.sleep(30)
@@ -62,6 +60,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadChapter(num: Int) {
-        webView.loadData("<h1>Chapter $num</h1><p>Commentary content for full screen reading...</p>", "text/html", "UTF-8")
+        webView.loadData("<h1>Chapter $num</h1><p>Swipe left/right for next chapter - Full screen</p>", "text/html", "UTF-8")
     }
 }
