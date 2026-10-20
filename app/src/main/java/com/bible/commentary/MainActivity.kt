@@ -121,11 +121,21 @@ public class MainActivity extends AppCompatActivity {
     void loadChapter(String book, int ch) {
         currentBook = book;
         currentChapter = ch;
-        Cursor cur = db.rawQuery("SELECT html FROM commentary WHERE book=? AND chapter=?", new String[]{book, String.valueOf(ch)});
-        String html = cur.moveToFirst() ? cur.getString(0) : "<p>Not found</p>";
-        cur.close();
-        String page = "<style>body{font-family:serif;line-height:1.9;padding:12px;background:#fdfcf8} .vref{color:#0d5bd6;background:#e8f0fe;padding:2px 6px;border-radius:6px;font-weight:700}</style><h2>"+book+" "+ch+"</h2>"+html+"<script>document.addEventListener('click',e=>{if(e.target.classList.contains('vref')) Android.showVerse(e.target.innerText)})</script>";
-        webView.loadDataWithBaseURL(null, page, "text/html", "utf-8", null);
+        try {
+            Cursor cur = db.rawQuery("SELECT clickable_html, html FROM expanded_verses WHERE book=? AND chapter=? LIMIT 1", new String[]{book, String.valueOf(ch)});
+            String html = "<p>Not found for " + book + " " + ch + "</p>";
+            if (cur.moveToFirst()) {
+                String clickable = cur.getString(0);
+                String plain = cur.getString(1);
+                html = (clickable != null && !clickable.trim().isEmpty()) ? clickable : plain;
+                if (html == null || html.trim().isEmpty()) html = "<p>Empty chapter</p>";
+            }
+            cur.close();
+            String page = "<style>body{font-family:serif;line-height:1.9;padding:12px;background:#fdfcf8} .vref{color:#0d5bd6;background:#e8f0fe;padding:2px 6px;border-radius:6px;font-weight:700;cursor:pointer} h2{border-bottom:2px solid #ddd} button{padding:8px 12px;margin:4px}</style><h2>"+book+" "+ch+"</h2><button onclick=\"Android.prev()\">◀ Prev</button> <button onclick=\"Android.next()\">Next ▶</button><hr>"+html+"<hr><button onclick=\"Android.prev()\">◀ Prev</button> <button onclick=\"Android.next()\">Next ▶</button><script>document.addEventListener('click',e=>{if(e.target.classList.contains('vref')) Android.showVerse(e.target.innerText)})</script>";
+            webView.loadDataWithBaseURL(null, page, "text/html", "utf-8", null);
+        } catch (Exception e) {
+            webView.loadDataWithBaseURL(null, "<h3>Error: "+e.getMessage()+"</h3>", "text/html","utf-8",null);
+        }
     }
 
     void nextChapter() { loadChapter(currentBook, currentChapter+1); }
@@ -134,10 +144,20 @@ public class MainActivity extends AppCompatActivity {
     @JavascriptInterface
     public void showVerse(String ref) {
         runOnUiThread(() -> {
-            Cursor c = db.rawQuery("SELECT text FROM bible_verses WHERE ref=?", new String[]{ref.trim()});
-            String t = c.moveToFirst() ? c.getString(0) : "Verse not found";
-            c.close();
-            new AlertDialog.Builder(this).setTitle(ref).setMessage(t).setPositiveButton("Close", null).show();
+            try {
+                Cursor c = db.rawQuery("SELECT text FROM bible_verses WHERE ref=?", new String[]{ref.trim()});
+                String t = c.moveToFirst() ? c.getString(0) : "Verse not found: " + ref;
+                c.close();
+                new AlertDialog.Builder(this).setTitle(ref).setMessage(t).setPositiveButton("Close", null).show();
+            } catch (Exception e) {
+                new AlertDialog.Builder(this).setTitle(ref).setMessage("Error: "+e.getMessage()).setPositiveButton("Close", null).show();
+            }
         });
     }
+
+    @JavascriptInterface
+    public void next() { runOnUiThread(this::nextChapter); }
+
+    @JavascriptInterface
+    public void prev() { runOnUiThread(this::prevChapter); }
 }
