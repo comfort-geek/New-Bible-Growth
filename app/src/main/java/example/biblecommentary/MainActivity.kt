@@ -4,6 +4,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.os.Bundle
 import android.view.GestureDetector
 import android.view.MotionEvent
+import android.view.WindowManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.LinearLayout
@@ -26,6 +27,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // FULL SCREEN - HIDE STATUS BAR
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_FULLSCREEN,
+            WindowManager.LayoutParams.FLAG_FULLSCREEN
+        )
+        supportActionBar?.hide()
+
         setContentView(R.layout.activity_main)
         webView = findViewById(R.id.webView)
         bar = findViewById(R.id.progressBar)
@@ -35,21 +44,13 @@ class MainActivity : AppCompatActivity() {
         webView.settings.javaScriptEnabled = true
         webView.webViewClient = WebViewClient()
 
-        // SWIPE GESTURE CODE
         val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
                 if (e1 == null || db == null) return false
                 val diffX = e2.x - e1.x
                 val diffY = e2.y - e1.y
-                // Only horizontal swipe
                 if (abs(diffX) > abs(diffY) && abs(diffX) > 150 && abs(velocityX) > 100) {
-                    if (diffX < 0) {
-                        // Swipe LEFT -> Next
-                        nextChapter()
-                    } else {
-                        // Swipe RIGHT -> Back / Prev
-                        prevChapter()
-                    }
+                    if (diffX < 0) nextChapter() else prevChapter()
                     return true
                 }
                 return false
