@@ -23,7 +23,9 @@ class MainActivity : AppCompatActivity() {
     )
 
     private lateinit var listView: ListView
-    private lateinit var tv: TextView
+    private lateinit var topText: TextView
+    private lateinit var contentText: TextView
+    private lateinit var scrollView: ScrollView
     private var db: SQLiteDatabase? = null
     private var tableName = ""
     private var bookCol = ""
@@ -36,92 +38,110 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        try {
-            val lay = LinearLayout(this)
-            lay.orientation = LinearLayout.VERTICAL
 
-            tv = TextView(this)
-            tv.text = "Bible Commentary - Loading..."
-            tv.setPadding(20, 80, 20, 20)
-            tv.textSize = 16f
-
-            listView = ListView(this)
-
-            lay.addView(tv)
-            lay.addView(listView)
-
-            setContentView(lay)
-
-            listView.setOnItemClickListener { _, _, pos, _ ->
-                try {
-                    if (mode == "books") {
-                        currentBook = books[pos]
-                        showChapters()
-                    } else if (mode == "chapters") {
-                        currentChapter = chapters[pos]
-                        showContent()
-                    }
-                } catch (e: Exception) {
-                    tv.text = e.message
-                }
+        // Prevent crash from killing app
+        Thread.setDefaultUncaughtExceptionHandler { _, e ->
+            runOnUiThread {
+                topText.text = "Error: ${e.message}"
             }
-
-            tv.setOnClickListener {
-                if (mode == "chapters") showBooks()
-                else if (mode == "content") showChapters()
-            }
-
-            Thread { download() }.start()
-
-        } catch (e: Exception) {
-            val t = TextView(this)
-            t.text = "Startup Error: ${e.message}"
-            setContentView(t)
         }
+
+        val root = LinearLayout(this)
+        root.orientation = LinearLayout.VERTICAL
+
+        topText = TextView(this)
+        topText.text = "Bible Commentary - Genesis to Revelation"
+        topText.setPadding(20, 80, 20, 20)
+        topText.textSize = 16f
+
+        listView = ListView(this)
+
+        contentText = TextView(this)
+        contentText.setPadding(20, 20, 20, 20)
+        contentText.textSize = 17f
+
+        scrollView = ScrollView(this)
+        scrollView.addView(contentText)
+        scrollView.visibility = android.view.View.GONE
+
+        root.addView(topText)
+        root.addView(listView, LinearLayout.LayoutParams(-1, -1, 1f))
+        root.addView(scrollView, LinearLayout.LayoutParams(-1, -1, 1f))
+
+        setContentView(root)
+
+        listView.setOnItemClickListener { _, _, pos, _ ->
+            if (mode == "books") {
+                currentBook = books[pos]
+                showChapters()
+            } else if (mode == "chapters") {
+                currentChapter = chapters[pos]
+                showContent()
+            }
+        }
+
+        topText.setOnClickListener {
+            if (mode == "chapters") showBooks()
+            else if (mode == "content") showChapters()
+        }
+
+        showBooks()
+        Thread { download() }.start()
     }
 
-    private fun getDbFile(): File {
-        return File(filesDir, "commentary_better.db")
-    }
+    private fun getDbFile(): File = File(filesDir, "commentary_better.db")
 
     private fun download() {
         try {
             val f = getDbFile()
             if (!f.exists() || f.length() < 1024 * 1024) {
-                f.parentFile?.mkdirs()
-                runOnUiThread { tv.text = "Downloading DB from archive.org..." }
+                runOnUiThread { topText.text = "Downloading commentary_better.db..." }
                 val conn = URL(DB_URL).openConnection() as HttpURLConnection
                 conn.setRequestProperty("User-Agent", "Mozilla/5.0")
+                conn.connectTimeout = 15000
+                conn.readTimeout = 15000
                 conn.instanceFollowRedirects = true
                 conn.connect()
-                val inp = conn.inputStream
-                val out = FileOutputStream(f)
-                val buf = ByteArray(8192)
-                var r: Int
-                var total = 0
-                while (inp.read(buf).also { r = it } != -1) {
-                    out.write(buf, 0, r)
-                    total += r
-                    val mb = total / 1024 / 1024
-                    runOnUiThread { tv.text = "Downloading... $mb MB" }
+                if (conn.responseCode == 200) {
+                    val inp = conn.inputStream
+                    val out = FileOutputStream(f)
+                    val buf = ByteArray(8192)
+                    var r: Int
+                    var total = 0
+                    while (inp.read(buf).also { r = it } != -1) {
+                        out.write(buf, 0, r)
+                        total += r
+                        val mb = total / 1024 / 1024
+                        runOnUiThread { topText.text = "Downloading... $mb MB - Please wait" }
+                    }
+                    out.close()
+                    inp.close()
                 }
-                out.close()
-                inp.close()
             }
             runOnUiThread { openDb() }
         } catch (e: Exception) {
-            runOnUiThread { tv.text = "Download failed: ${e.message}" }
+            runOnUiThread {
+                topText.text = "Download error: ${e.message} - Tap to try books"
+                showBooks()
+            }
         }
     }
 
     private fun openDb() {
         try {
             val f = getDbFile()
-            tv.text = "Opening ${f.length() / 1024 / 1024} MB"
+            if (!f.exists()) {
+                showBooks()
+                return
+            }
             db = SQLiteDatabase.openDatabase(f.path, null, SQLiteDatabase.OPEN_READONLY)
             val c = db!!.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'android_%'", null)
             if (c.moveToFirst()) tableName = c.getString(0)
             c.close()
+            if (tableName.isEmpty()) {
+                showBooks()
+                return
+            }
             val col = db!!.rawQuery("SELECT * FROM $tableName LIMIT 1", null)
             for (i in 0 until col.columnCount) {
                 val n = col.getColumnName(i).lowercase()
@@ -130,33 +150,42 @@ class MainActivity : AppCompatActivity() {
                 if (n.contains("comment") || n.contains("text")) textCol = col.getColumnName(i)
             }
             if (bookCol.isEmpty()) bookCol = col.getColumnName(0)
-            if (chapterCol.isEmpty()) chapterCol = col.getColumnName(1)
+            if (chapterCol.isEmpty() && col.columnCount > 1) chapterCol = col.getColumnName(1)
             if (textCol.isEmpty()) textCol = col.getColumnName(col.columnCount - 1)
             col.close()
             showBooks()
         } catch (e: Exception) {
-            tv.text = "DB error: ${e.message}"
+            topText.text = "DB error: ${e.message} - Showing books anyway"
+            showBooks()
         }
     }
 
     private fun showBooks() {
         mode = "books"
-        tv.text = "Select Book - Genesis to Revelation"
+        topText.text = "Bible Commentary - Select Book"
+        scrollView.visibility = android.view.View.GONE
+        listView.visibility = android.view.View.VISIBLE
         listView.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, books)
     }
 
     private fun showChapters() {
         mode = "chapters"
-        tv.text = "$currentBook - Select Chapter - Tap text to go back"
+        topText.text = "$currentBook - Select Chapter - Tap here to go back"
+        scrollView.visibility = android.view.View.GONE
+        listView.visibility = android.view.View.VISIBLE
         try {
-            val q = "SELECT DISTINCT $chapterCol FROM $tableName WHERE $bookCol LIKE '%$currentBook%' ORDER BY CAST($chapterCol AS INTEGER)"
-            val cur = db!!.rawQuery(q, null)
-            val list = mutableListOf<Int>()
-            while (cur.moveToNext()) {
-                try { list.add(cur.getInt(0)) } catch (_: Exception) {}
+            if (db != null) {
+                val q = "SELECT DISTINCT $chapterCol FROM $tableName WHERE $bookCol LIKE '%$currentBook%' ORDER BY CAST($chapterCol AS INTEGER)"
+                val cur = db!!.rawQuery(q, null)
+                val list = mutableListOf<Int>()
+                while (cur.moveToNext()) {
+                    try { list.add(cur.getInt(0)) } catch (_: Exception) {}
+                }
+                cur.close()
+                chapters = if (list.isEmpty()) (1..50).toList() else list
+            } else {
+                chapters = (1..50).toList()
             }
-            cur.close()
-            chapters = if (list.isEmpty()) (1..50).toList() else list
         } catch (_: Exception) {
             chapters = (1..50).toList()
         }
@@ -165,23 +194,30 @@ class MainActivity : AppCompatActivity() {
 
     private fun showContent() {
         mode = "content"
-        tv.text = "$currentBook $currentChapter - Loading... Tap to go back"
+        listView.visibility = android.view.View.GONE
+        scrollView.visibility = android.view.View.VISIBLE
+        contentText.text = "Loading $currentBook $currentChapter..."
+        topText.text = "$currentBook $currentChapter - Tap here to go back"
+
         Thread {
             try {
-                val q = "SELECT $textCol FROM $tableName WHERE $bookCol LIKE '%$currentBook%' AND $chapterCol='$currentChapter'"
-                val cur = db!!.rawQuery(q, null)
                 var txt = ""
-                while (cur.moveToNext()) {
-                    txt += cur.getString(0) + "\n\n"
+                if (db != null) {
+                    val q = "SELECT $textCol FROM $tableName WHERE $bookCol LIKE '%$currentBook%' AND $chapterCol='$currentChapter'"
+                    val cur = db!!.rawQuery(q, null)
+                    while (cur.moveToNext()) {
+                        val s = cur.getString(0)
+                        if (s != null) txt += s + "\n\n"
+                    }
+                    cur.close()
                 }
-                cur.close()
-                if (txt.isEmpty()) txt = "No commentary for $currentBook $currentChapter"
-                runOnUiThread {
-                    tv.text = "$currentBook $currentChapter - Tap to go back"
-                    listView.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, listOf(txt))
+                if (txt.isEmpty()) txt = "No commentary found for $currentBook Chapter $currentChapter.\n\nDB file may still be downloading. File size: ${getDbFile().length()/1024/1024} MB"
+                runOnUiThread { 
+                    contentText.text = txt
+                    scrollView.scrollTo(0, 0)
                 }
             } catch (e: Exception) {
-                runOnUiThread { tv.text = "Error: ${e.message}" }
+                runOnUiThread { contentText.text = "Error: ${e.message}" }
             }
         }.start()
     }
