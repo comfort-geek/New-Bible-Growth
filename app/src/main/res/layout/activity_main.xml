@@ -1,0 +1,7 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+ android:orientation="vertical" android:layout_width="match_parent"
+ android:layout_height="match_parent" android:gravity="center" android:padding="20dp">
+ <TextView android:text="First open: Downloading from Archive.org cloud..." android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+ <ProgressBar android:id="@+id/progressBar" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp"/>
+ <TextView android:id="@+id/status" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8dp"/>
+</LinearLayout>
