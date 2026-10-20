@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
     fun download() {
         Thread {
             try {
-                runOnUiThread { status.text = "Resolving archive.org..." }
+                runOnUiThread { status.text = "Download" }
                 var url = URL(DB_URL)
                 var c: HttpURLConnection
                 var redirects = 0
@@ -79,7 +79,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     break
                 }
-                if (c.responseCode !in 200..299) throw Exception("HTTP ${c.responseCode} from archive.org")
+                if (c.responseCode !in 200..299) throw Exception("HTTP ${c.responseCode}")
                 val total = c.contentLength
                 val input = c.inputStream
                 val outFile = getDatabasePath("commentary_better.db")
@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
                 while (input.read(b).also { len = it } != -1) {
                     out.write(b, 0, len); dl += len
                     val p = if (total>0) (dl*100/total).toInt() else 0
-                    runOnUiThread { try { bar.progress = p; status.text = "Downloading DB: $p% ($dl / $total)" } catch (_: Exception) {} }
+                    runOnUiThread { try { bar.progress = p; status.text = "Download $p%" } catch (_: Exception) {} }
                 }
                 out.close(); input.close()
                 runOnUiThread { openDB() }
@@ -98,7 +98,7 @@ class MainActivity : AppCompatActivity() {
                 getDatabasePath("commentary_better.db").delete()
                 e.printStackTrace()
                 runOnUiThread { 
-                    status.text = "Error: ${e.message}\n\nCheck: 1) Internet ON? 2) Disable Data Saver 3) Try WiFi\nTap to retry"
+                    status.text = "Error: ${e.message}\nTap to retry"
                     status.setOnClickListener { download() } 
                 }
             }
