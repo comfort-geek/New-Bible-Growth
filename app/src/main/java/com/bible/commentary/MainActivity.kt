@@ -1,70 +1,143 @@
-package com.bible.commentary;
+package com.example.biblecommentary;
 
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
+import android.webkit.JavascriptInterface;
+import android.webkit.WebView;
+import android.widget.Button;
+import android.widget.GridLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import java.io.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class MainActivity extends AppCompatActivity {
-    private static final String DB_URL = "https://archive.org/download/commentary_better/commentary_better.db";
-    private static final String DB_NAME = "commentary_better.db";
-    
-    ProgressBar progressBar;
+    WebView webView;
+    ProgressBar bar;
     TextView status;
+    GridLayout gridBooks;
+    SQLiteDatabase db;
+    final String DB_URL = "https://archive.org/download/commentary_better/commentary_better.db";
+    String currentBook = "Genesis";
+    int currentChapter = 1;
+    GestureDetector gestureDetector;
+    
+    String[] BOOKS = {"Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalms","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi","Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation"};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        progressBar = findViewById(R.id.progressBar);
+        webView = findViewById(R.id.webView);
+        bar = findViewById(R.id.progressBar);
         status = findViewById(R.id.status);
+        gridBooks = findViewById(R.id.gridBooks);
+        webView.getSettings().setJavaScriptEnabled(true);
+        webView.addJavascriptInterface(this, "Android");
 
-        File dbFile = getDatabasePath(DB_NAME);
-        if (!dbFile.exists()) {
-            // FIRST OPEN - Download from Archive.org cloud
-            downloadDB();
-        } else {
-            openApp();
-        }
+        // Swipe detector: left = back, right = forward
+        gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
+                float diff = e2.getX() - e1.getX();
+                if (Math.abs(diff) > 150 && Math.abs(vx) > 100) {
+                    if (diff < 0) nextChapter(); else prevChapter();
+                    return true;
+                }
+                return false;
+            }
+        });
+        webView.setOnTouchListener((v, event) -> gestureDetector.onTouchEvent(event));
+
+        File f = getDatabasePath("commentary_better.db");
+        if (!f.exists()) download();
+        else openDB();
     }
 
-    void downloadDB() {
+    void download() {
         new Thread(() -> {
             try {
                 URL url = new URL(DB_URL);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                int total = conn.getContentLength();
-                InputStream in = conn.getInputStream();
-                File outFile = getDatabasePath(DB_NAME);
+                HttpURLConnection c = (HttpURLConnection) url.openConnection();
+                c.connect();
+                int total = c.getContentLength();
+                InputStream in = c.getInputStream();
+                File outFile = getDatabasePath("commentary_better.db");
                 outFile.getParentFile().mkdirs();
                 FileOutputStream out = new FileOutputStream(outFile);
-                byte[] buffer = new byte[8192];
-                int len, downloaded = 0;
-                while ((len = in.read(buffer)) != -1) {
-                    out.write(buffer, 0, len);
-                    downloaded += len;
-                    int pct = (int) (downloaded * 100.0 / total);
-                    runOnUiThread(() -> {
-                        progressBar.setProgress(pct);
-                        status.setText("Downloading from Archive.org: " + pct + "%");
-                    });
+                byte[] b = new byte[8192];
+                int len, dl = 0;
+                while ((len = in.read(b)) != -1) {
+                    out.write(b, 0, len);
+                    dl += len;
+                    int p = total > 0 ? (int) (dl * 100.0 / total) : 0;
+                    runOnUiThread(() -> { bar.setProgress(p); status.setText("Downloading: " + p + "%"); });
                 }
                 out.close(); in.close();
-                runOnUiThread(this::openApp);
+                runOnUiThread(this::openDB);
             } catch (Exception e) {
                 runOnUiThread(() -> status.setText("Error: " + e.getMessage()));
             }
         }).start();
     }
 
-    void openApp() {
-        // Your existing code to load commentary
-        // db path = getDatabasePath(DB_NAME).getPath()
-        // Example: WebView loads HTML with clickable verses using bible_verses table
-        status.setText("Ready - Offline");
-        // startActivity(new Intent(this, CommentaryActivity.class));
+    void openDB() {
+        File f = getDatabasePath("commentary_better.db");
+        db = SQLiteDatabase.openDatabase(f.getPath(), null, SQLiteDatabase.OPEN_READONLY);
+        bar.setVisibility(android.view.View.GONE);
+        status.setVisibility(android.view.View.GONE);
+        setupBookGrid();
+        loadChapter("Genesis", 1);
+    }
+
+    void setupBookGrid() {
+        gridBooks.removeAllViews();
+        gridBooks.setColumnCount(3);
+        for (String book : BOOKS) {
+            Button btn = new Button(this);
+            btn.setText(book);
+            btn.setTextSize(11);
+            btn.setAllCaps(false);
+            GridLayout.LayoutParams params = new GridLayout.LayoutParams();
+            params.width = 0;
+            params.height = GridLayout.LayoutParams.WRAP_CONTENT;
+            params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f);
+            params.setMargins(4,4,4,4);
+            btn.setLayoutParams(params);
+            btn.setOnClickListener(v -> loadChapter(book, 1));
+            gridBooks.addView(btn);
+        }
+    }
+
+    void loadChapter(String book, int ch) {
+        currentBook = book;
+        currentChapter = ch;
+        Cursor cur = db.rawQuery("SELECT html FROM commentary WHERE book=? AND chapter=?", new String[]{book, String.valueOf(ch)});
+        String html = cur.moveToFirst() ? cur.getString(0) : "<p>Not found</p>";
+        cur.close();
+        String page = "<style>body{font-family:serif;line-height:1.9;padding:16px;background:#fdfcf8;font-size:17px} .vref{color:#0d5bd6;background:#e8f0fe;padding:2px 8px;border-radius:8px;font-weight:700}</style>"
+                + "<h2>" + book + " " + ch + "</h2>" + html
+                + "<script>document.addEventListener('click',e=>{if(e.target.classList.contains('vref')) Android.showVerse(e.target.innerText)})</script>";
+        webView.loadDataWithBaseURL(null, page, "text/html", "utf-8", null);
+    }
+
+    void nextChapter() { loadChapter(currentBook, currentChapter + 1); }
+    void prevChapter() { if (currentChapter > 1) loadChapter(currentBook, currentChapter - 1); }
+
+    @JavascriptInterface
+    public void showVerse(String ref) {
+        runOnUiThread(() -> {
+            Cursor c = db.rawQuery("SELECT text FROM bible_verses WHERE ref=?", new String[]{ref.trim()});
+            String t = c.moveToFirst() ? c.getString(0) : "Verse not found";
+            c.close();
+            new AlertDialog.Builder(this).setTitle(ref).setMessage(t).setPositiveButton("Close", null).show();
+        });
     }
 }
