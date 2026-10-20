@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#fdfcf8">
 
-    <!-- DOWNLOAD SCREEN (shows first) -->
+    <!-- Downloading UI -->
     <LinearLayout
-        android:id="@+id/downloadLayout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
@@ -18,31 +16,28 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Bible Commentary"
-            android:textSize="24sp"
+            android:textSize="22sp"
             android:textStyle="bold"
-            android:textColor="#222"
-            android:layout_marginBottom="30dp" />
+            android:layout_marginBottom="20dp" />
 
         <ProgressBar
             android:id="@+id/progressBar"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
             android:layout_height="20dp"
-            android:max="100"
-            android:progress="0" />
+            android:max="100" />
 
         <TextView
             android:id="@+id/status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Downloading 0%"
-            android:textSize="16sp"
-            android:textColor="#555"
-            android:layout_marginTop="12dp" />
+            android:layout_marginTop="12dp"
+            android:textSize="15sp" />
 
     </LinearLayout>
 
-    <!-- HOME / READER SCREEN (hidden until DB ready) -->
+    <!-- Reader UI - Full Screen - Hidden first -->
     <LinearLayout
         android:id="@+id/homeLayout"
         android:layout_width="match_parent"
@@ -50,4 +45,11 @@
         android:orientation="vertical"
         android:visibility="gone">
 
-        <!-- WebView - FULL
+        <WebView
+            android:id="@+id/webView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </LinearLayout>
+
+</FrameLayout>
