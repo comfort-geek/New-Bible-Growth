@@ -1,18 +1,20 @@
 plugins {
     id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
 }
+
 android {
     namespace 'com.example.biblecommentary'
     compileSdk 34
     
     defaultConfig {
         applicationId "com.example.biblecommentary"
-        minSdk 26  // Android 8.0 Oreo +
+        minSdk 26
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1-fixed"
         ndk {
-            abiFilters 'armeabi-v7a' // ARM 32-bit only
+            abiFilters 'armeabi-v7a'
         }
     }
     
@@ -32,6 +34,10 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
     
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    
     packaging {
         jniLibs {
             useLegacyPackaging true
@@ -41,4 +47,5 @@ android {
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.core:core-ktx:1.12.0'
 }
