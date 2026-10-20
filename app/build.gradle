@@ -4,23 +4,41 @@ plugins {
 android {
     namespace 'com.example.biblecommentary'
     compileSdk 34
+    
     defaultConfig {
         applicationId "com.example.biblecommentary"
-        minSdk 21
+        minSdk 26  // Android 8.0 Oreo +
         targetSdk 34
         versionCode 1
         versionName "1.0"
+        ndk {
+            abiFilters 'armeabi-v7a' // ARM 32-bit only
+        }
     }
+    
     buildTypes {
-        release { minifyEnabled false }
-        debug { minifyEnabled false }
+        release { 
+            minifyEnabled false
+            ndk { abiFilters 'armeabi-v7a' }
+        }
+        debug { 
+            minifyEnabled false
+            ndk { abiFilters 'armeabi-v7a' }
+        }
     }
+    
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+    
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+        }
+    }
 }
+
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:1.11.0'
 }
