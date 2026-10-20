@@ -2,7 +2,6 @@ plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
 }
-
 android {
     namespace 'com.example.biblecommentary'
     compileSdk 34
@@ -10,8 +9,8 @@ android {
         applicationId "com.example.biblecommentary"
         minSdk 26
         targetSdk 34
-        versionCode 5
-        versionName "1.3.1"
+        versionCode 6
+        versionName "1.3.2"
         ndk { abiFilters += "armeabi-v7a" }
     }
     compileOptions {
@@ -21,7 +20,6 @@ android {
     kotlinOptions { jvmTarget = '17' }
     buildTypes { release { minifyEnabled false } }
 }
-
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
