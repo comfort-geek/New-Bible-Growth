@@ -24,6 +24,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var listView: ListView
     private lateinit var topText: TextView
+    private lateinit var progressText: TextView
     private lateinit var contentText: TextView
     private lateinit var scrollView: ScrollView
     private var db: SQLiteDatabase? = null
@@ -35,23 +36,22 @@ class MainActivity : AppCompatActivity() {
     private var currentChapter = 1
     private var mode = "books"
     private var chapters = listOf<Int>()
+    private var isDownloading = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Prevent crash from killing app
-        Thread.setDefaultUncaughtExceptionHandler { _, e ->
-            runOnUiThread {
-                topText.text = "Error: ${e.message}"
-            }
-        }
-
         val root = LinearLayout(this)
         root.orientation = LinearLayout.VERTICAL
 
+        progressText = TextView(this)
+        progressText.text = "Checking DB..."
+        progressText.setPadding(20, 80, 20, 10)
+        progressText.textSize = 14f
+
         topText = TextView(this)
-        topText.text = "Bible Commentary - Genesis to Revelation"
-        topText.setPadding(20, 80, 20, 20)
+        topText.text = "Bible Commentary"
+        topText.setPadding(20, 10, 20, 20)
         topText.textSize = 16f
 
         listView = ListView(this)
@@ -64,6 +64,7 @@ class MainActivity : AppCompatActivity() {
         scrollView.addView(contentText)
         scrollView.visibility = android.view.View.GONE
 
+        root.addView(progressText)
         root.addView(topText)
         root.addView(listView, LinearLayout.LayoutParams(-1, -1, 1f))
         root.addView(scrollView, LinearLayout.LayoutParams(-1, -1, 1f))
@@ -71,6 +72,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(root)
 
         listView.setOnItemClickListener { _, _, pos, _ ->
+            if (isDownloading) {
+                Toast.makeText(this, "Please wait, downloading...", Toast.LENGTH_SHORT).show()
+                return@setOnItemClickListener
+            }
             if (mode == "books") {
                 currentBook = books[pos]
                 showChapters()
@@ -85,7 +90,6 @@ class MainActivity : AppCompatActivity() {
             else if (mode == "content") showChapters()
         }
 
-        showBooks()
         Thread { download() }.start()
     }
 
@@ -95,11 +99,17 @@ class MainActivity : AppCompatActivity() {
         try {
             val f = getDbFile()
             if (!f.exists() || f.length() < 1024 * 1024) {
-                runOnUiThread { topText.text = "Downloading commentary_better.db..." }
+                isDownloading = true
+                runOnUiThread {
+                    progressText.visibility = android.view.View.VISIBLE
+                    progressText.text = "Downloading commentary_better.db from archive.org - 0 MB"
+                    topText.text = "Genesis to Revelation - Please wait..."
+                    listView.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, listOf("Downloading... please wait"))
+                }
                 val conn = URL(DB_URL).openConnection() as HttpURLConnection
                 conn.setRequestProperty("User-Agent", "Mozilla/5.0")
-                conn.connectTimeout = 15000
-                conn.readTimeout = 15000
+                conn.connectTimeout = 20000
+                conn.readTimeout = 20000
                 conn.instanceFollowRedirects = true
                 conn.connect()
                 if (conn.responseCode == 200) {
@@ -107,21 +117,28 @@ class MainActivity : AppCompatActivity() {
                     val out = FileOutputStream(f)
                     val buf = ByteArray(8192)
                     var r: Int
-                    var total = 0
+                    var total = 0L
                     while (inp.read(buf).also { r = it } != -1) {
                         out.write(buf, 0, r)
                         total += r
                         val mb = total / 1024 / 1024
-                        runOnUiThread { topText.text = "Downloading... $mb MB - Please wait" }
+                        val percent = if (conn.contentLength > 0) (total * 100 / conn.contentLength).toInt() else 0
+                        runOnUiThread {
+                            progressText.text = "Downloading: $mb MB ($percent%) - ${total/1024} KB"
+                        }
                     }
                     out.close()
                     inp.close()
                 }
+                isDownloading = false
             }
             runOnUiThread { openDb() }
         } catch (e: Exception) {
             runOnUiThread {
-                topText.text = "Download error: ${e.message} - Tap to try books"
+                isDownloading = false
+                progressText.visibility = android.view.View.VISIBLE
+                progressText.text = "Download failed: ${e.message}"
+                topText.text = "Tap a book to try offline"
                 showBooks()
             }
         }
@@ -129,19 +146,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun openDb() {
         try {
-            val f = getDbFile()
-            if (!f.exists()) {
+            progressText.visibility = android.view.View.GONE
+            val dbFile = getDbFile()
+            if (!dbFile.exists()) {
+                progressText.visibility = android.view.View.VISIBLE
+                progressText.text = "No DB file"
                 showBooks()
                 return
             }
-            db = SQLiteDatabase.openDatabase(f.path, null, SQLiteDatabase.OPEN_READONLY)
+            db = SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
             val c = db!!.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'android_%'", null)
             if (c.moveToFirst()) tableName = c.getString(0)
             c.close()
-            if (tableName.isEmpty()) {
-                showBooks()
-                return
-            }
             val col = db!!.rawQuery("SELECT * FROM $tableName LIMIT 1", null)
             for (i in 0 until col.columnCount) {
                 val n = col.getColumnName(i).lowercase()
@@ -155,14 +171,17 @@ class MainActivity : AppCompatActivity() {
             col.close()
             showBooks()
         } catch (e: Exception) {
-            topText.text = "DB error: ${e.message} - Showing books anyway"
+            progressText.visibility = android.view.View.VISIBLE
+            progressText.text = "DB error: ${e.message}"
             showBooks()
         }
     }
 
     private fun showBooks() {
         mode = "books"
-        topText.text = "Bible Commentary - Select Book"
+        if (!isDownloading) {
+            topText.text = "Select Book - Genesis to Revelation - Tap a book"
+        }
         scrollView.visibility = android.view.View.GONE
         listView.visibility = android.view.View.VISIBLE
         listView.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, books)
@@ -198,7 +217,6 @@ class MainActivity : AppCompatActivity() {
         scrollView.visibility = android.view.View.VISIBLE
         contentText.text = "Loading $currentBook $currentChapter..."
         topText.text = "$currentBook $currentChapter - Tap here to go back"
-
         Thread {
             try {
                 var txt = ""
@@ -211,8 +229,8 @@ class MainActivity : AppCompatActivity() {
                     }
                     cur.close()
                 }
-                if (txt.isEmpty()) txt = "No commentary found for $currentBook Chapter $currentChapter.\n\nDB file may still be downloading. File size: ${getDbFile().length()/1024/1024} MB"
-                runOnUiThread { 
+                if (txt.isEmpty()) txt = "No commentary for $currentBook $currentChapter"
+                runOnUiThread {
                     contentText.text = txt
                     scrollView.scrollTo(0, 0)
                 }
