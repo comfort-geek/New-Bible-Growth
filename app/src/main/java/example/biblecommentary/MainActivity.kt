@@ -58,8 +58,28 @@ class MainActivity : AppCompatActivity() {
     fun download() {
         Thread {
             try {
-                val c = URL(DB_URL).openConnection() as HttpURLConnection
-                c.connect()
+                runOnUiThread { status.text = "Resolving archive.org..." }
+                var url = URL(DB_URL)
+                var c: HttpURLConnection
+                var redirects = 0
+                while (true) {
+                    c = url.openConnection() as HttpURLConnection
+                    c.instanceFollowRedirects = false
+                    c.connectTimeout = 15000
+                    c.readTimeout = 15000
+                    c.setRequestProperty("User-Agent", "BibleCommentaryApp")
+                    c.connect()
+                    val code = c.responseCode
+                    if (code in 300..399) {
+                        val newUrl = c.getHeaderField("Location") ?: break
+                        url = URL(newUrl)
+                        redirects++
+                        if (redirects > 5) break
+                        continue
+                    }
+                    break
+                }
+                if (c.responseCode !in 200..299) throw Exception("HTTP ${c.responseCode} from archive.org")
                 val total = c.contentLength
                 val input = c.inputStream
                 val outFile = getDatabasePath("commentary_better.db")
@@ -70,13 +90,17 @@ class MainActivity : AppCompatActivity() {
                 while (input.read(b).also { len = it } != -1) {
                     out.write(b, 0, len); dl += len
                     val p = if (total>0) (dl*100/total).toInt() else 0
-                    runOnUiThread { try { bar.progress = p; status.text = "Downloading DB: $p%" } catch (_: Exception) {} }
+                    runOnUiThread { try { bar.progress = p; status.text = "Downloading DB: $p% ($dl / $total)" } catch (_: Exception) {} }
                 }
                 out.close(); input.close()
                 runOnUiThread { openDB() }
             } catch (e: Exception) {
                 getDatabasePath("commentary_better.db").delete()
-                runOnUiThread { status.text = "Error: ${e.message} tap to retry"; status.setOnClickListener { download() } }
+                e.printStackTrace()
+                runOnUiThread { 
+                    status.text = "Error: ${e.message}\n\nCheck: 1) Internet ON? 2) Disable Data Saver 3) Try WiFi\nTap to retry"
+                    status.setOnClickListener { download() } 
+                }
             }
         }.start()
     }
