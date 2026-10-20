@@ -24,11 +24,12 @@ class MainActivity : AppCompatActivity() {
     var db: SQLiteDatabase? = null
     var currentBook = "Genesis"
     var currentChapter = 1
+    private val APP_VERSION = "1.1.0"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // FULL SCREEN - HIDE STATUS BAR
+        // FULL SCREEN - Version 1.1.0
         window.setFlags(
             WindowManager.LayoutParams.FLAG_FULLSCREEN,
             WindowManager.LayoutParams.FLAG_FULLSCREEN
@@ -44,6 +45,7 @@ class MainActivity : AppCompatActivity() {
         webView.settings.javaScriptEnabled = true
         webView.webViewClient = WebViewClient()
 
+        // SWIPE GESTURE
         val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
                 if (e1 == null || db == null) return false
@@ -101,7 +103,7 @@ class MainActivity : AppCompatActivity() {
                     out.write(buf, 0, len)
                     sum += len
                     val p = if (total > 0) sum * 100 / total else 0
-                    runOnUiThread { bar.progress = p; status.text = "Downloading $p%" }
+                    runOnUiThread { bar.progress = p; status.text = "Downloading $p% - v$APP_VERSION" }
                 }
                 out.close()
                 input.close()
@@ -141,10 +143,12 @@ class MainActivity : AppCompatActivity() {
             val page = """
                 <html><head><style>
                 body{font-family:serif;line-height:1.9;padding:12px;background:#fdfcf8}
-                .hint{color:#888;font-size:12px;text-align:center;padding:8px;background:#eee;border-radius:8px;margin-bottom:10px}
+                .hint{color:#888;font-size:11px;text-align:center;padding:8px;background:#eee;border-radius:8px;margin-bottom:10px}
+                .ver{color:#aaa;font-size:10px;text-align:right;margin-top:20px}
                 </style></head><body>
                 <div class="hint">← Swipe right for Prev | Swipe left for Next →</div>
                 <h2>$book $ch</h2><hr>$html
+                <div class="ver">Version $APP_VERSION</div>
                 </body></html>
             """.trimIndent()
             webView.loadDataWithBaseURL(null, page, "text/html", "utf-8", null)
