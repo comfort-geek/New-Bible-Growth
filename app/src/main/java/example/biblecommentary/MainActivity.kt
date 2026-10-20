@@ -22,6 +22,8 @@ class MainActivity : AppCompatActivity() {
     lateinit var bar: ProgressBar
     lateinit var status: TextView
     lateinit var gridBooks: LinearLayout
+    lateinit var downloadLayout: LinearLayout
+    lateinit var homeLayout: LinearLayout
     var db: SQLiteDatabase? = null
     val DB_URL = "https://archive.org/download/commentary_better/commentary_better.db"
     var currentBook = "Genesis"
@@ -35,9 +37,13 @@ class MainActivity : AppCompatActivity() {
         bar = findViewById(R.id.progressBar)
         status = findViewById(R.id.status)
         gridBooks = findViewById(R.id.gridBooks)
+        downloadLayout = findViewById(R.id.downloadLayout)
+        homeLayout = findViewById(R.id.homeLayout)
+
         webView.settings.javaScriptEnabled = true
         webView.webViewClient = WebViewClient()
         webView.addJavascriptInterface(this, "Android")
+
         val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
                 if (db == null) return false
@@ -50,6 +56,7 @@ class MainActivity : AppCompatActivity() {
             }
         })
         webView.setOnTouchListener { _, e -> detector.onTouchEvent(e); false }
+
         val f = getDatabasePath("commentary_better.db")
         if (f.exists() && f.length() < 10*1024*1024) f.delete()
         if (!f.exists()) download() else openDB()
@@ -58,7 +65,6 @@ class MainActivity : AppCompatActivity() {
     fun download() {
         Thread {
             try {
-                runOnUiThread { status.text = "Download" }
                 var url = URL(DB_URL)
                 var c: HttpURLConnection
                 var redirects = 0
@@ -90,17 +96,13 @@ class MainActivity : AppCompatActivity() {
                 while (input.read(b).also { len = it } != -1) {
                     out.write(b, 0, len); dl += len
                     val p = if (total>0) (dl*100/total).toInt() else 0
-                    runOnUiThread { try { bar.progress = p; status.text = "Download $p%" } catch (_: Exception) {} }
+                    runOnUiThread { try { bar.progress = p; status.text = "Downloading $p%" } catch (_: Exception) {} }
                 }
                 out.close(); input.close()
                 runOnUiThread { openDB() }
             } catch (e: Exception) {
                 getDatabasePath("commentary_better.db").delete()
-                e.printStackTrace()
-                runOnUiThread { 
-                    status.text = "Error: ${e.message}\nTap to retry"
-                    status.setOnClickListener { download() } 
-                }
+                runOnUiThread { status.text = "Error: ${e.message}\nTap to retry"; status.setOnClickListener { download() } }
             }
         }.start()
     }
@@ -110,14 +112,14 @@ class MainActivity : AppCompatActivity() {
             val f = getDatabasePath("commentary_better.db")
             db = SQLiteDatabase.openDatabase(f.path, null, SQLiteDatabase.OPEN_READONLY)
             runOnUiThread {
-                try { bar.visibility = android.view.View.GONE } catch (_: Exception) {}
-                try { status.visibility = android.view.View.GONE } catch (_: Exception) {}
+                downloadLayout.visibility = android.view.View.GONE
+                homeLayout.visibility = android.view.View.VISIBLE
                 setupBooks()
                 loadChapter("Genesis", 1)
             }
         } catch (e: Exception) {
             getDatabasePath("commentary_better.db").delete()
-            runOnUiThread { status.text = "DB corrupt, re-downloading"; download() }
+            runOnUiThread { download() }
         }
     }
 
@@ -169,12 +171,6 @@ class MainActivity : AppCompatActivity() {
     fun showVerse(ref: String) {
         runOnUiThread {
             try {
-                val check = db!!.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='bible_verses'", null)
-                val hasTable = check.moveToFirst(); check.close()
-                if (!hasTable) {
-                    AlertDialog.Builder(this).setTitle(ref).setMessage("KJV table not found").setPositiveButton("Close", null).show()
-                    return@runOnUiThread
-                }
                 val c = db!!.rawQuery("SELECT text FROM bible_verses WHERE ref=?", arrayOf(ref.trim()))
                 val t = if (c.moveToFirst()) c.getString(0) else "Verse not found: $ref"
                 c.close()
