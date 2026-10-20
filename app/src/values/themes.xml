@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="Theme.BibleCommentary" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
-        <item name="colorPrimary">#5B3CC6</item>
-        <item name="colorPrimaryVariant">#3A2080</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-    </style>
-</resources>
