@@ -8,11 +8,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-      - uses: android-actions/setup-android@v3
+
+      - name: Check SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo $ANDROID_SDK_ROOT
+          ls $ANDROID_SDK_ROOT
+          ls $ANDROID_SDK_ROOT/platforms || true
+
       - name: Download index.html from Release
         run: |
           mkdir -p app/src/main/java/com/bible/commentary
@@ -20,6 +30,8 @@ jobs:
           mkdir -p app/src/main/assets
           curl -L -o app/src/main/assets/index.html https://github.com/comfort-geek/Bible-Commentary/releases/download/V1.1.0/index.html
           ls -lh app/src/main/assets/
+          head -c 200 app/src/main/assets/index.html
+
       - name: Create Project
         run: |
           cat > settings.gradle <<'EOF'
@@ -69,11 +81,13 @@ jobs:
             public void onBackPressed() { if (webView.canGoBack()) webView.goBack(); else super.onBackPressed(); }
           }
           EOF
+
       - name: Build APK
         run: |
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
           gradle wrapper --gradle-version 8.4
           ./gradlew assembleDebug --stacktrace
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
